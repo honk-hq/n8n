@@ -1,63 +1,66 @@
 {
-	"name": "n8n-nodes-honk",
-	"version": "0.1.0",
-	"description": "n8n community node for Honk (honk-me.app): send messages from your workflows to your phone, with idempotency keys so retries never notify twice.",
-	"license": "MIT",
-	"homepage": "https://github.com/honk-me/honk-n8n#readme",
-	"keywords": [
-		"n8n-community-node-package",
-		"n8n",
-		"honk",
-		"honk-me",
-		"notifications",
-		"push-notifications",
-		"alerts"
-	],
-	"author": {
-		"name": "Honk",
-		"email": "sdk@honk-me.app",
-		"url": "https://honk-me.app"
-	},
-	"repository": {
-		"type": "git",
-		"url": "git+https://github.com/honk-me/honk-n8n.git"
-	},
-	"bugs": {
-		"url": "https://github.com/honk-me/honk-n8n/issues"
-	},
-	"scripts": {
-		"build": "n8n-node build",
-		"build:watch": "tsc --watch",
-		"dev": "n8n-node dev",
-		"lint": "n8n-node lint",
-		"lint:fix": "n8n-node lint --fix",
-		"test": "n8n-node build && node --test test/request.test.mjs test/node.test.mjs test/credential.test.mjs",
-		"test:integration": "n8n-node build && node --test test/credential.integration.mjs",
-		"release": "n8n-node release",
-		"prepublishOnly": "n8n-node prerelease"
-	},
-	"files": [
-		"dist",
-		"!dist/tsconfig.tsbuildinfo",
-		"CHANGELOG.md"
-	],
-	"n8n": {
-		"n8nNodesApiVersion": 1,
-		"strict": true,
-		"credentials": [
-			"dist/credentials/HonkApi.credentials.js"
-		],
-		"nodes": [
-			"dist/nodes/Honk/Honk.node.js"
-		]
-	},
-	"devDependencies": {
-		"@n8n/node-cli": "^0.50.4",
-		"eslint": "9.32.0",
-		"prettier": "3.6.2",
-		"typescript": "5.9.2"
-	},
-	"peerDependencies": {
-		"n8n-workflow": "*"
-	}
+  "name": "n8n-nodes-honk",
+  "version": "0.1.1",
+  "description": "n8n community node for Honk (honk-me.app): send messages from your workflows to your phone, with idempotency keys so retries never notify twice.",
+  "license": "MIT",
+  "homepage": "https://github.com/honk-me/honk-n8n#readme",
+  "keywords": [
+    "n8n-community-node-package",
+    "n8n",
+    "honk",
+    "honk-me",
+    "notifications",
+    "push-notifications",
+    "alerts"
+  ],
+  "author": {
+    "name": "Honk",
+    "email": "sdk@honk-me.app",
+    "url": "https://honk-me.app"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/honk-me/honk-n8n.git"
+  },
+  "bugs": {
+    "url": "https://github.com/honk-me/honk-n8n/issues"
+  },
+  "scripts": {
+    "build": "n8n-node build",
+    "build:watch": "tsc --watch",
+    "dev": "n8n-node dev",
+    "lint": "n8n-node lint",
+    "lint:fix": "n8n-node lint --fix",
+    "test": "n8n-node build && node --test test/request.test.mjs test/node.test.mjs test/credential.test.mjs",
+    "test:integration": "n8n-node build && node --test test/credential.integration.mjs",
+    "release": "n8n-node release",
+    "prepublishOnly": "n8n-node prerelease"
+  },
+  "files": [
+    "dist",
+    "!dist/tsconfig.tsbuildinfo",
+    "CHANGELOG.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "strict": true,
+    "credentials": [
+      "dist/credentials/HonkApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/Honk/Honk.node.js"
+    ]
+  },
+  "devDependencies": {
+    "@n8n/node-cli": "^0.50.4",
+    "eslint": "9.32.0",
+    "prettier": "3.6.2",
+    "typescript": "5.9.2"
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  }
 }
