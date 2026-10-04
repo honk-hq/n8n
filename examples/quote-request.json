@@ -1,0 +1,62 @@
+{
+	"name": "Honk: notify me about a quote request",
+	"nodes": [
+		{
+			"parameters": {
+				"httpMethod": "POST",
+				"path": "quote-request",
+				"options": {}
+			},
+			"id": "4f0f6a9e-2b1c-4c39-9a51-1c2d3e4f5a61",
+			"name": "Quote Request",
+			"type": "n8n-nodes-base.webhook",
+			"typeVersion": 2,
+			"position": [0, 0],
+			"webhookId": "8d3c2b1a-5e6f-4a7b-8c9d-0e1f2a3b4c5d"
+		},
+		{
+			"parameters": {
+				"resource": "message",
+				"operation": "send",
+				"message": "={{ $json.body.name }} ({{ $json.body.email }}) asked for a quote: {{ $json.body.summary }}",
+				"title": "New quote request",
+				"severity": "warning",
+				"additionalFields": {
+					"category": "customers",
+					"groupKey": "=requests/{{ $json.body.id }}",
+					"priority": "high",
+					"source": "n8n",
+					"url": "=https://shop.example.com/admin/requests/{{ $json.body.id }}",
+					"metadata": {
+						"values": [
+							{ "key": "request_id", "value": "={{ $json.body.id }}" },
+							{ "key": "email", "value": "={{ $json.body.email }}" }
+						]
+					}
+				},
+				"options": {
+					"idempotencyKey": "=request-{{ $json.body.id }}"
+				}
+			},
+			"id": "9a8b7c6d-5e4f-4a3b-9c2d-1e0f9a8b7c6d",
+			"name": "Honk",
+			"type": "n8n-nodes-honk.honk",
+			"typeVersion": 1,
+			"position": [280, 0],
+			"credentials": {
+				"honkApi": {
+					"id": "",
+					"name": "Honk API"
+				}
+			}
+		}
+	],
+	"connections": {
+		"Quote Request": {
+			"main": [[{ "node": "Honk", "type": "main", "index": 0 }]]
+		}
+	},
+	"settings": {
+		"executionOrder": "v1"
+	}
+}

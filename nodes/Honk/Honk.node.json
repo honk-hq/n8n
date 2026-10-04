@@ -1,0 +1,18 @@
+{
+	"node": "n8n-nodes-honk.honk",
+	"nodeVersion": "1.0",
+	"codexVersion": "1.0",
+	"categories": ["Communication", "Utility"],
+	"resources": {
+		"credentialDocumentation": [
+			{
+				"url": "https://github.com/honk-me/honk-n8n#credentials"
+			}
+		],
+		"primaryDocumentation": [
+			{
+				"url": "https://github.com/honk-me/honk-n8n#readme"
+			}
+		]
+	}
+}
