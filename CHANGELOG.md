@@ -4,6 +4,13 @@ All notable changes to `n8n-nodes-honk` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.2] - 2026-10-06
+
+### Changed
+
+- The package's author email is accounts@honk-me.app, the address n8n's creator portal sends
+  its ownership check to.
+
 ## [0.1.1] - 2026-10-04
 
 ### Fixed
