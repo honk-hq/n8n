@@ -4,6 +4,17 @@ All notable changes to `n8n-nodes-honk` are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **Actions** under Additional Fields: up to three buttons on the message, each a title (up to
+  40 characters) and an `https://`, `mailto:`, `tel:` or `sms:` URL, sent as `actions` in the
+  order given (contracts/API.md §13). Empty rows are left out. More than three, a missing title
+  or URL, or a link Honk refuses (another scheme, a `mailto:` with more than one address or with
+  keys other than `subject` and `body`, a phone number with letters or an extension) fail before
+  anything is sent. Messages without actions are sent exactly as before.
+
 ## [0.1.2] - 2026-10-06
 
 ### Changed

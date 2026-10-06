@@ -115,6 +115,41 @@ export class Honk implements INodeType {
 				displayOptions: { show: { resource: ['message'], operation: ['send'] } },
 				options: [
 					{
+						displayName: 'Actions',
+						name: 'actions',
+						type: 'fixedCollection',
+						typeOptions: { multipleValues: true },
+						placeholder: 'Add Action',
+						default: {},
+						description:
+							'Up to 3 buttons on the message, in this order; the first is the main one. Honk opens a link only when you tap its button.',
+						options: [
+							{
+								displayName: 'Action',
+								name: 'values',
+								values: [
+									{
+										displayName: 'Title',
+										name: 'title',
+										type: 'string',
+										default: '',
+										placeholder: 'e.g. Reply',
+										description: 'The button label: one line, up to 40 characters',
+									},
+									{
+										displayName: 'URL',
+										name: 'url',
+										type: 'string',
+										default: '',
+										placeholder: 'e.g. mailto:ana@example.com',
+										description:
+											'What the button opens: an https:// link, mailto: one email address (optionally with ?subject= and &body=), or tel: or sms: a phone number such as +15550134. No spaces.',
+									},
+								],
+							},
+						],
+					},
+					{
 						displayName: 'Category',
 						name: 'category',
 						type: 'options',

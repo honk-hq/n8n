@@ -2,7 +2,8 @@
 // access, so they are unit-tested directly (test/request.test.mjs).
 //
 // The checks are light and mirror the API's rules (required message, lengths, https links,
-// metadata shape); the server stays authoritative and reports anything else as field errors.
+// metadata shape, action buttons); the server stays authoritative and reports anything else as
+// field errors.
 
 export const DEFAULT_URL = 'https://honk-me.app';
 
@@ -33,9 +34,17 @@ const LIMITS = {
 	urlBytes: 2048,
 	metadataKeys: 16,
 	metadataString: 512,
+	actions: 3,
+	actionTitle: 40,
 };
 
 export type MetadataValue = string | number | boolean;
+
+/** A button on the message (contracts/API.md §13). */
+export interface Action {
+	title: string;
+	url: string;
+}
 
 /** The node's parameters for one item, as n8n returns them. */
 export interface SendInput {
@@ -43,6 +52,7 @@ export interface SendInput {
 	title?: string;
 	severity?: string;
 	additionalFields?: {
+		actions?: { values?: Array<{ title?: unknown; url?: unknown }> };
 		category?: string;
 		channel?: string;
 		environment?: string;
@@ -73,6 +83,7 @@ export interface MessageBody {
 	url?: string;
 	image_url?: string;
 	metadata?: Record<string, MetadataValue>;
+	actions?: Action[];
 }
 
 export interface FieldProblem {
@@ -130,6 +141,14 @@ export function buildMessage(input: SendInput): MessageBody {
 		}
 		if (Object.keys(metadata).length > 0) body.metadata = metadata;
 	}
+	// Rows left completely empty are skipped; a half-filled one is sent so its field is reported.
+	const actions: Action[] = [];
+	for (const entry of f.actions?.values ?? []) {
+		const title = text(entry.title) ?? '';
+		const url = text(entry.url) ?? '';
+		if (title !== '' || url !== '') actions.push({ title, url });
+	}
+	if (actions.length > 0) body.actions = actions;
 	return body;
 }
 
@@ -156,6 +175,63 @@ function httpsUrl(value: string, image: boolean): boolean {
 	}
 	if (u.protocol !== 'https:' || u.hostname === '' || u.username !== '' || u.password !== '') return false;
 	return !(image && value.includes('#'));
+}
+
+// A phone number as tel: and sms: take it: + only first, then digits and the separators - . ( ),
+// with at least one digit (no ;ext= or percent-encoding).
+const PHONE = /^\+?[0-9().-]*[0-9][0-9().-]*$/;
+// A character of an email address part (RFC 5322 atext, UTF-8 allowed), as the server parses it.
+const ATEXT = '[^\\s\\p{Cc}()<>\\[\\]:;@\\\\,".]';
+const LOCAL_PART = new RegExp(`^${ATEXT}+(?:\\.${ATEXT}+)*$`, 'u');
+const DOMAIN = new RegExp(`^(?:${ATEXT}+(?:\\.${ATEXT}+)+|\\[[!-Z^-~]*\\.[!-Z^-~]*\\])$`, 'u');
+
+/** The address of a mailto: link: exactly one plain address with a dotted domain. */
+function mailAddress(encoded: string): boolean {
+	let address: string;
+	try {
+		address = decodeURIComponent(encoded);
+	} catch {
+		return false;
+	}
+	if (address === '' || /[,<>" ]/.test(address)) return false;
+	const at = address.lastIndexOf('@');
+	return at > 0 && LOCAL_PART.test(address.slice(0, at)) && DOMAIN.test(address.slice(at + 1));
+}
+
+/** The query of a mailto: or sms: link: valid percent-encoding and only the allowed keys. */
+function actionQuery(query: string, allowed: string[]): boolean {
+	if (/%(?![0-9A-Fa-f]{2})/.test(query)) return false;
+	for (const part of query.split('&')) {
+		if (part === '') continue;
+		if (part.includes(';')) return false;
+		let key: string;
+		try {
+			key = decodeURIComponent(part.split('=')[0].replace(/\+/g, ' '));
+		} catch {
+			return false;
+		}
+		if (!allowed.includes(key)) return false;
+	}
+	return true;
+}
+
+/** An action's link: https://, mailto:, tel: or sms: (any case), as the API accepts them. */
+function actionUrl(value: string): boolean {
+	if (utf8Bytes(value) > LIMITS.urlBytes || /\s/.test(value) || hasControl(value, false)) return false;
+	const colon = value.indexOf(':');
+	if (colon < 0) return false;
+	const scheme = value.slice(0, colon).toLowerCase();
+	const rest = value.slice(colon + 1);
+	const q = rest.indexOf('?');
+	const [before, query] = q < 0 ? [rest, ''] : [rest.slice(0, q), rest.slice(q + 1)];
+	// A host right after https:// (the URL parser would also read https:host and https:///host),
+	// valid percent-encoding and no port 0, as the server parses it.
+	if (scheme === 'https')
+		return /^https:\/\/[^/]/i.test(value) && !/%(?![0-9A-Fa-f]{2})/.test(value) && httpsUrl(value, false) && new URL(value).port !== '0';
+	if (scheme === 'mailto') return mailAddress(before) && actionQuery(query, ['subject', 'body']);
+	if (scheme === 'tel') return PHONE.test(rest.replace(/^\/\//, ''));
+	if (scheme === 'sms') return PHONE.test(before) && actionQuery(query, ['body']);
+	return false;
 }
 
 /** The light checks: every problem at once, in the API's field names. */
@@ -213,6 +289,23 @@ export function checkMessage(body: MessageBody): FieldProblem[] {
 			add(`metadata.${key}`, 'invalid_format', `Metadata values must be at most ${LIMITS.metadataString} characters`);
 		if (typeof v === 'number' && !Number.isFinite(v)) add(`metadata.${key}`, 'invalid_format', 'Numbers must be finite');
 	}
+
+	// Beyond three, the server reports only the count, so the actions themselves aren't checked.
+	const actions = body.actions ?? [];
+	if (actions.length > LIMITS.actions) add('actions', 'too_long', `At most ${LIMITS.actions} actions`);
+	else actions.forEach((action, i) => {
+		const n = i + 1;
+		if (action.title === '') add(`actions[${i}].title`, 'required', `Action ${n} needs a title`);
+		else if (chars(action.title) > LIMITS.actionTitle)
+			add(`actions[${i}].title`, 'too_long', `Action ${n}'s title must be at most ${LIMITS.actionTitle} characters`);
+		else if (hasControl(action.title, false))
+			add(`actions[${i}].title`, 'invalid_format', `Action ${n}'s title must be one line without control characters`);
+		if (action.url === '') add(`actions[${i}].url`, 'required', `Action ${n} needs a URL`);
+		else if (utf8Bytes(action.url) > LIMITS.urlBytes)
+			add(`actions[${i}].url`, 'too_long', `Action ${n}'s URL must be at most ${LIMITS.urlBytes} bytes`);
+		else if (!actionUrl(action.url))
+			add(`actions[${i}].url`, 'invalid_format', `Action ${n}'s URL must be an https://, mailto:, tel: or sms: link without spaces`);
+	});
 	if (problems.length === 0) {
 		const size = utf8Bytes(JSON.stringify(body));
 		if (size > LIMITS.bodyBytes) add('body', 'too_long', `The message is ${size} bytes as JSON; Honk accepts at most 16 KiB`);

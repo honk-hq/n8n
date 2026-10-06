@@ -62,6 +62,7 @@ Add the **Honk** node and choose **Message → Send**.
 | Additional Fields → Source, Environment, Channel | up to 64, 32 and 64 characters; defaults `api`, `default`, `general` |
 | Additional Fields → URL | an https link shown as "Open link" |
 | Additional Fields → Image URL | an https image shown with the notification |
+| Additional Fields → Actions | up to 3 buttons, each a title (up to 40 characters) and a URL: `https://…`, `mailto:` an address, `tel:` or `sms:` a number. The first is the main one; Honk opens a link only when you tap its button |
 | Additional Fields → Metadata | up to 16 name/value fields |
 | Additional Fields → Occurred At | when it happened at the source |
 | Options → Idempotency Key | see below |

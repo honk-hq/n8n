@@ -21,6 +21,11 @@ describe('description', () => {
 		const severity = d.properties.find((p) => p.name === 'severity');
 		assert.deepEqual(severity.options.map((o) => o.value).sort(), ['critical', 'error', 'info', 'success', 'warning']);
 		assert.equal(severity.default, 'info');
+		const fields = d.properties.find((p) => p.name === 'additionalFields').options;
+		const actions = fields.find((o) => o.name === 'actions');
+		assert.equal(actions.type, 'fixedCollection');
+		assert.equal(actions.typeOptions.multipleValues, true);
+		assert.deepEqual(actions.options[0].values.map((v) => v.name), ['title', 'url']);
 	});
 });
 
@@ -53,6 +58,16 @@ describe('execute', () => {
 		]);
 	});
 
+	test('actions are sent in the order given', async () => {
+		const actions = { values: [{ title: 'Reply', url: 'mailto:ana@example.com?subject=Your%20quote' }, { title: 'Call Ana', url: 'tel:+40712345678' }] };
+		const { calls, result } = run({ params: { ...base, additionalFields: { actions } } });
+		await result;
+		assert.deepEqual(calls[0].options.body.actions, [
+			{ title: 'Reply', url: 'mailto:ana@example.com?subject=Your%20quote' },
+			{ title: 'Call Ana', url: 'tel:+40712345678' },
+		]);
+	});
+
 	test('the same execution, node and item always give the same key', async () => {
 		const first = run({ params: base, executionId: '7', nodeId: 'abc' });
 		const again = run({ params: base, executionId: '7', nodeId: 'abc' });
@@ -73,6 +88,13 @@ describe('execute', () => {
 		assert.equal(calls.length, 0);
 		const bad = run({ params: { ...base, options: { idempotencyKey: 'has space' } } });
 		await assert.rejects(bad.result, /idempotency key must be 1–128/);
+		const link = run({ params: { ...base, additionalFields: { actions: { values: [{ title: 'Open', url: 'javascript:alert(1)' }] } } } });
+		await assert.rejects(link.result, (err) => {
+			assert.match(err.message, /Invalid message: Action 1's URL must be an https:\/\/, mailto:, tel: or sms: link/);
+			assert.match(err.description, /^actions\[0\]\.url: /);
+			return true;
+		});
+		assert.equal(link.calls.length, 0);
 	});
 
 	for (const [response, message, httpCode] of [

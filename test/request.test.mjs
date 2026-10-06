@@ -23,6 +23,7 @@ describe('buildMessage', () => {
 				priority: 'high',
 				source: 'n8n',
 				url: 'https://grafana.example.com/d/disk',
+				actions: { values: [{ title: ' Open runbook ', url: ' https://wiki.example.com/disk ' }, { title: '', url: '' }, { title: 'Call on-call', url: 'tel:+15550134' }] },
 			},
 		});
 		assert.deepEqual(body, {
@@ -40,12 +41,21 @@ describe('buildMessage', () => {
 			image_url: 'https://grafana.example.com/disk.png',
 			occurred_at: '2026-10-04T12:20:05.123Z',
 			metadata: { host: 'db-1', used: 91, ok: false },
+			actions: [
+				{ title: 'Open runbook', url: 'https://wiki.example.com/disk' },
+				{ title: 'Call on-call', url: 'tel:+15550134' },
+			],
 		});
 	});
 
 	test('a minimal message is only the message', () => {
-		assert.deepEqual(buildMessage({ message: 'hello', title: '', severity: '', additionalFields: { groupKey: '  ', metadata: { values: [] } } }), { message: 'hello' });
+		assert.deepEqual(buildMessage({ message: 'hello', title: '', severity: '', additionalFields: { groupKey: '  ', metadata: { values: [] }, actions: { values: [{ title: ' ', url: '' }] } } }), { message: 'hello' });
+		assert.deepEqual(buildMessage({ message: 'hello', additionalFields: { actions: {} } }), { message: 'hello' });
 		assert.deepEqual(buildMessage({ message: undefined }), { message: '' });
+	});
+
+	test('a half-filled action is sent so the server names the missing field', () => {
+		assert.deepEqual(buildMessage({ message: 'm', additionalFields: { actions: { values: [{ title: 'Reply', url: '' }] } } }).actions, [{ title: 'Reply', url: '' }]);
 	});
 
 	test('an unparseable date is sent as typed so the server names the field', () => {
@@ -82,10 +92,79 @@ describe('checkMessage', () => {
 			[{ message: 'm', image_url: 'https://example.com/a.png#x' }, 'image_url', 'invalid_format'],
 			[{ message: 'm', metadata: { 'bad key': 1 } }, 'metadata.bad key', 'invalid_format'],
 			[{ message: 'm', metadata: { long: s(513) } }, 'metadata.long', 'invalid_format'],
+			[{ message: 'm', actions: [{ title: '', url: 'tel:1' }] }, 'actions[0].title', 'required'],
+			[{ message: 'm', actions: [{ title: s(41), url: 'tel:1' }] }, 'actions[0].title', 'too_long'],
+			[{ message: 'm', actions: [{ title: 'two\nlines', url: 'tel:1' }] }, 'actions[0].title', 'invalid_format'],
+			[{ message: 'm', actions: [{ title: 'Call', url: 'tel:1' }, { title: 'Reply', url: '' }] }, 'actions[1].url', 'required'],
+			[{ message: 'm', actions: [{ title: 'Open', url: 'https://example.com/' + s(2048) }] }, 'actions[0].url', 'too_long'],
 		];
 		for (const [body, field, code] of cases) assert.deepEqual(one(body), [field, code], `${field} ${code}`);
 		const many = Object.fromEntries(Array.from({ length: 17 }, (_, i) => [`k${i}`, i]));
 		assert.deepEqual(one({ message: 'm', metadata: many }), ['metadata', 'too_long']);
+		const four = Array.from({ length: 4 }, (_, i) => ({ title: `Call ${i}`, url: `tel:+1555013${i}` }));
+		assert.deepEqual(one({ message: 'm', actions: four }), ['actions', 'too_long']);
+		// Beyond three, as on the server, the actions themselves aren't checked.
+		assert.deepEqual(one({ message: 'm', actions: [...four, { title: '', url: 'javascript:x' }] }), ['actions', 'too_long']);
+	});
+
+	test('action links: https, mailto, tel and sms only', () => {
+		const ok = [
+			'https://shop.example.com/admin/orders/1234',
+			'HTTPS://Example.com',
+			'mailto:emily@example.com',
+			'mailto:emily@example.com?subject=Your%20quote&body=Hi%20Emily',
+			'mailto:emily@example.com?body=a+b&subject=',
+			'mailto:emily%40example.com',
+			'MailTo:emily+shop@example.co.uk',
+			'mailto:jürgen@exämple.de',
+			'mailto:o.brien@[192.0.2.1]',
+			'tel:+15550134',
+			'tel:+1-555-(013).4',
+			'tel://+15550134',
+			'TEL:5550134',
+			'sms:+15550134',
+			'sms:+15550134?body=On%20my%20way',
+		];
+		for (const url of ok) assert.deepEqual(checkMessage({ message: 'm', actions: [{ title: 'Go', url }] }), [], url);
+		const bad = [
+			'http://example.com',
+			'https://user:pw@example.com',
+			'https://example.com/a b',
+			'javascript:alert(1)',
+			'data:text/html,hi',
+			'file:///etc/passwd',
+			'whatsapp://send?phone=15550134',
+			'mailto:',
+			'mailto:not-an-address',
+			'mailto:emily@localhost',
+			'mailto:emily@example.com,ana@example.com',
+			'mailto:emily@example.com?cc=ana@example.com',
+			'mailto:emily@example.com?bcc=x@example.com',
+			'mailto:emily@example.com?attach=/etc/passwd',
+			'mailto:emily@example.com?to=x@example.com&subject=Hi',
+			'mailto:emily@example.com?subject=100%',
+			'mailto:emily@example.com?subject=a;b',
+			'mailto:Emily%20<emily@example.com>',
+			'mailto:%22emily%22@example.com',
+			'mailto:@example.com',
+			'mailto:.emily@example.com',
+			'mailto:emily..carter@example.com',
+			'https:example.com',
+			'https:///example.com',
+			'https://example.com/%zz',
+			'https://example.com:0',
+			'tel:',
+			'tel:call-me',
+			'tel:+1 555 0134',
+			'tel:1+555',
+			'tel:+15550134;ext=12',
+			'tel:%2B15550134',
+			'sms:+15550134?subject=x',
+			'sms:+15550134?Body=x',
+			'sms://+15550134',
+			'ftp://example.com',
+		];
+		for (const url of bad) assert.deepEqual(one({ message: 'm', actions: [{ title: 'Go', url }] }), ['actions[0].url', 'invalid_format'], url);
 	});
 
 	test('every problem at once, and edge cases that pass', () => {
@@ -97,6 +176,7 @@ describe('checkMessage', () => {
 			{ message: 'tabs\tand\r\nbreaks', title: 'é'.repeat(160), group_key: 'g'.repeat(128) },
 			{ message: 'm', url: 'https://example.com:8443/a?b=c#d', image_url: 'https://example.com/a.png?x=1' },
 			{ message: 'm', event_type: 'recovery', group_key: 'g', severity: 'critical', priority: 'urgent', category: 'sales' },
+			{ message: 'm', actions: [{ title: 'é'.repeat(40), url: 'tel:1' }, { title: 'Reply', url: 'mailto:a@b.c' }, { title: 'Open', url: 'https://example.com' }] },
 		];
 		for (const body of ok) assert.deepEqual(checkMessage(body), [], JSON.stringify(body).slice(0, 60));
 	});
