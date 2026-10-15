@@ -204,10 +204,10 @@ describe('idempotency keys and URLs', () => {
 	});
 
 	test('the base URL', () => {
-		assert.equal(baseUrl('https://honk-me.app/'), 'https://honk-me.app');
+		assert.equal(baseUrl('https://honk-honk.app/'), 'https://honk-honk.app');
 		assert.equal(baseUrl(' https://honk.example.com/v1/messages/ '), 'https://honk.example.com');
-		assert.equal(baseUrl(''), 'https://honk-me.app');
-		assert.equal(baseUrl(undefined), 'https://honk-me.app');
+		assert.equal(baseUrl(''), 'https://honk-honk.app');
+		assert.equal(baseUrl(undefined), 'https://honk-honk.app');
 	});
 });
 

@@ -5,7 +5,7 @@
 // metadata shape, action buttons); the server stays authoritative and reports anything else as
 // field errors.
 
-export const DEFAULT_URL = 'https://honk-me.app';
+export const DEFAULT_URL = 'https://honk-honk.app';
 
 export const SEVERITIES = ['info', 'success', 'warning', 'error', 'critical'] as const;
 export const PRIORITIES = ['low', 'normal', 'high', 'urgent'] as const;
@@ -395,7 +395,7 @@ export function describeApiError(
 		return {
 			code: code || 'not_found',
 			message: 'No Honk server at this URL',
-			description: 'Use the base address of your Honk server in the credential, e.g. https://honk-me.app.',
+			description: 'Use the base address of your Honk server in the credential, e.g. https://honk-honk.app.',
 		};
 	}
 	if (status === 409) {

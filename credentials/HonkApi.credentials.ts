@@ -20,9 +20,9 @@ export class HonkApi implements ICredentialType {
 			displayName: 'Server URL',
 			name: 'url',
 			type: 'string',
-			default: 'https://honk-me.app',
+			default: 'https://honk-honk.app',
 			required: true,
-			placeholder: 'e.g. https://honk-me.app',
+			placeholder: 'e.g. https://honk-honk.app',
 			description: 'The base address of your Honk server',
 		},
 		{
@@ -89,7 +89,7 @@ export class HonkApi implements ICredentialType {
 				properties: {
 					key: 'error.code',
 					value: 'not_found',
-					message: 'No Honk server at this URL. Use the base address, e.g. https://honk-me.app.',
+					message: 'No Honk server at this URL. Use the base address, e.g. https://honk-honk.app.',
 				},
 			},
 			{
@@ -106,7 +106,7 @@ export class HonkApi implements ICredentialType {
 				properties: {
 					key: 'error.code',
 					value: undefined,
-					message: 'This URL did not answer like a Honk server. Use the base address, e.g. https://honk-me.app.',
+					message: 'This URL did not answer like a Honk server. Use the base address, e.g. https://honk-honk.app.',
 				},
 			},
 		],

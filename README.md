@@ -3,7 +3,7 @@
 [![CI](https://github.com/honk-me/honk-n8n/actions/workflows/ci.yml/badge.svg)](https://github.com/honk-me/honk-n8n/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/n8n-nodes-honk)](https://www.npmjs.com/package/n8n-nodes-honk)
 
-An [n8n](https://n8n.io) community node for [Honk](https://honk-me.app), the inbox that turns
+An [n8n](https://n8n.io) community node for [Honk](https://honk-honk.app), the inbox that turns
 events from your apps, scripts, cron jobs and workflows into calm, grouped push notifications
 on your phone. Add a **Honk** node to any workflow to send a message: a new customer request,
 a failed backup, a finished import.
@@ -38,7 +38,7 @@ Create a **Honk API** credential:
 
 | Field | Value |
 |---|---|
-| Server URL | `https://honk-me.app` (the default), or the base address of your own Honk server |
+| Server URL | `https://honk-honk.app` (the default), or the base address of your own Honk server |
 | Ingestion Key | a project ingestion key (`honk_…`): in Honk, open the project → **Keys** → create a key |
 
 **Test** checks the key without sending anything to your phone: it posts an empty message,
@@ -133,7 +133,7 @@ from GitHub Actions with provenance (see `CHANGELOG.md`).
 
 ## Links
 
-- [honk-me.app](https://honk-me.app): the Honk inbox (web, iPhone).
+- [honk-honk.app](https://honk-honk.app): the Honk inbox (web, iPhone).
 - Honk SDKs: [Node.js](https://github.com/honk-me/honk-node), [PHP / Laravel](https://github.com/honk-me/honk-php),
   [Go + CLI](https://github.com/honk-me/honk-go), [Swift](https://github.com/honk-me/honk-swift),
   [Kotlin / Java](https://github.com/honk-me/honk-kotlin), [Rust](https://github.com/honk-me/honk-rust).

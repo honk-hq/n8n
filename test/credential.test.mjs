@@ -10,7 +10,7 @@ describe('Honk API credential', () => {
 		assert.equal(cred.name, 'honkApi');
 		const url = cred.properties.find((p) => p.name === 'url');
 		const key = cred.properties.find((p) => p.name === 'apiKey');
-		assert.equal(url.default, 'https://honk-me.app');
+		assert.equal(url.default, 'https://honk-honk.app');
 		assert.deepEqual(key.typeOptions, { password: true });
 		assert.deepEqual(cred.authenticate.properties.headers, { Authorization: '=Bearer {{$credentials.apiKey}}' });
 	});
