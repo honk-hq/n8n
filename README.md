@@ -135,7 +135,7 @@ from GitHub Actions with provenance (see `CHANGELOG.md`).
 
 - [honk-honk.app](https://honk-honk.app): the Honk inbox (web, iPhone).
 - Honk SDKs: [Node.js](https://github.com/honkhonk/node), [PHP / Laravel](https://github.com/honkhonk/php),
-  [Go + CLI](https://github.com/honkhonk/go), [Swift](https://github.com/honkhonk/swift),
+  [Go + CLI](https://github.com/honkhonk/go), [Swift](https://github.com/honkhonk/honk-swift),
   [Kotlin / Java](https://github.com/honkhonk/kotlin), [Rust](https://github.com/honkhonk/rust).
 
 MIT License.
