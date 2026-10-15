@@ -13,7 +13,7 @@ export class HonkApi implements ICredentialType {
 
 	icon: Icon = { light: 'file:../icons/honk.svg', dark: 'file:../icons/honk.dark.svg' };
 
-	documentationUrl = 'https://github.com/honkhonk/n8n#credentials';
+	documentationUrl = 'https://github.com/honk-hq/n8n#credentials';
 
 	properties: INodeProperties[] = [
 		{
