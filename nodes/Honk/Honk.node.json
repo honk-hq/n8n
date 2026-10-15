@@ -6,12 +6,12 @@
 	"resources": {
 		"credentialDocumentation": [
 			{
-				"url": "https://github.com/honk-me/honk-n8n#credentials"
+				"url": "https://github.com/honkhonk/n8n#credentials"
 			}
 		],
 		"primaryDocumentation": [
 			{
-				"url": "https://github.com/honk-me/honk-n8n#readme"
+				"url": "https://github.com/honkhonk/n8n#readme"
 			}
 		]
 	}

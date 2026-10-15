@@ -1,6 +1,6 @@
 # n8n-nodes-honk
 
-[![CI](https://github.com/honk-me/honk-n8n/actions/workflows/ci.yml/badge.svg)](https://github.com/honk-me/honk-n8n/actions/workflows/ci.yml)
+[![CI](https://github.com/honkhonk/n8n/actions/workflows/ci.yml/badge.svg)](https://github.com/honkhonk/n8n/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/n8n-nodes-honk)](https://www.npmjs.com/package/n8n-nodes-honk)
 
 An [n8n](https://n8n.io) community node for [Honk](https://honk-honk.app), the inbox that turns
@@ -134,8 +134,8 @@ from GitHub Actions with provenance (see `CHANGELOG.md`).
 ## Links
 
 - [honk-honk.app](https://honk-honk.app): the Honk inbox (web, iPhone).
-- Honk SDKs: [Node.js](https://github.com/honk-me/honk-node), [PHP / Laravel](https://github.com/honk-me/honk-php),
-  [Go + CLI](https://github.com/honk-me/honk-go), [Swift](https://github.com/honk-me/honk-swift),
-  [Kotlin / Java](https://github.com/honk-me/honk-kotlin), [Rust](https://github.com/honk-me/honk-rust).
+- Honk SDKs: [Node.js](https://github.com/honkhonk/node), [PHP / Laravel](https://github.com/honkhonk/php),
+  [Go + CLI](https://github.com/honkhonk/go), [Swift](https://github.com/honkhonk/swift),
+  [Kotlin / Java](https://github.com/honkhonk/kotlin), [Rust](https://github.com/honkhonk/rust).
 
 MIT License.
