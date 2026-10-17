@@ -97,7 +97,7 @@ and Honk pushes it to your phone, one group and one idempotency key per request.
 ```sh
 curl -X POST https://your-n8n.example.com/webhook/quote-request \
   -H 'Content-Type: application/json' \
-  -d '{"id": 4812, "name": "Ana", "email": "ana@example.com", "summary": "3 rooms, 2 bathrooms"}'
+  -d '{"id": 4812, "name": "Maria", "email": "maria@example.com", "summary": "3 rooms, 2 bathrooms"}'
 ```
 
 ## Errors

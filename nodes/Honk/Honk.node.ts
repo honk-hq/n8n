@@ -78,7 +78,7 @@ export class Honk implements INodeType {
 				required: true,
 				typeOptions: { rows: 4 },
 				default: '',
-				placeholder: 'e.g. Ana asked for a quote: 3 rooms, 2 bathrooms',
+				placeholder: 'e.g. Maria asked for a quote: 3 rooms, 2 bathrooms',
 				description: 'The text of the message, up to 8192 bytes. Line breaks are kept.',
 				displayOptions: { show: { resource: ['message'], operation: ['send'] } },
 			},
@@ -141,7 +141,7 @@ export class Honk implements INodeType {
 										name: 'url',
 										type: 'string',
 										default: '',
-										placeholder: 'e.g. mailto:ana@example.com',
+										placeholder: 'e.g. mailto:maria@example.com',
 										description:
 											'What the button opens: an https:// link, mailto: one email address (optionally with ?subject= and &body=), or tel: or sms: a phone number such as +15550134. No spaces.',
 									},
