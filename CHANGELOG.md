@@ -6,6 +6,8 @@ All notable changes to `n8n-nodes-honk` are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-18
+
 ### Added
 
 - **Actions** under Additional Fields: up to three buttons on the message, each a title (up to
