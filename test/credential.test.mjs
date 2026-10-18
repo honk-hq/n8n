@@ -39,10 +39,10 @@ describe('Honk API credential', () => {
 			[answer('invalid_key'), /Invalid or revoked ingestion key/],
 			[answer('project_suspended'), /suspended for its project/],
 			[answer('workspace_suspended'), /workspace is suspended/],
-			[answer('not_found'), /No Honk server at this URL/],
+			[answer('not_found'), /No Honk! Honk! server at this URL/],
 			[answer('unavailable'), /temporarily unavailable/],
-			['<!doctype html><title>Some other site</title>', /did not answer like a Honk server/],
-			[{ status: 'ok' }, /did not answer like a Honk server/],
+			['<!doctype html><title>Some other site</title>', /did not answer like a Honk! Honk! server/],
+			[{ status: 'ok' }, /did not answer like a Honk! Honk! server/],
 		];
 		for (const [body, message] of failing) {
 			const verdict = credentialVerdict(cred.test, body);

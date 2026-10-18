@@ -217,13 +217,13 @@ describe('describeApiError', () => {
 		const fields = [{ field: 'group_key', code: 'requires_group_key', message: 'recovery events require group_key' }];
 		assert.deepEqual(describeApiError(422, err('validation_failed', { fields })), {
 			code: 'validation_failed',
-			message: 'Honk rejected the message',
+			message: 'Honk! Honk! rejected the message',
 			description: 'group_key: recovery events require group_key (request req_1)',
 		});
 		assert.match(describeApiError(401, err('invalid_key')).message, /invalid or revoked/);
 		assert.match(describeApiError(403, err('priority_not_allowed')).message, /urgent/);
 		assert.match(describeApiError(403, err('project_suspended')).description, /project_suspended/);
-		assert.match(describeApiError(404, err('not_found')).message, /No Honk server/);
+		assert.match(describeApiError(404, err('not_found')).message, /No Honk! Honk! server/);
 		assert.match(describeApiError(409, err('idempotency_conflict')).message, /already used/);
 		const quota = describeApiError(429, err('quota_exceeded'), { 'retry-after': '3600' });
 		assert.match(quota.message, /quota/);

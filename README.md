@@ -3,12 +3,12 @@
 [![CI](https://github.com/honk-hq/n8n/actions/workflows/ci.yml/badge.svg)](https://github.com/honk-hq/n8n/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/n8n-nodes-honk)](https://www.npmjs.com/package/n8n-nodes-honk)
 
-An [n8n](https://n8n.io) community node for [Honk](https://honk-honk.app), the inbox that turns
+An [n8n](https://n8n.io) community node for [Honk! Honk!](https://honk-honk.app), the inbox that turns
 events from your apps, scripts, cron jobs and workflows into calm, grouped push notifications
-on your phone. Add a **Honk** node to any workflow to send a message: a new customer request,
+on your phone. Add a **Honk! Honk!** node to any workflow to send a message: a new customer request,
 a failed backup, a finished import.
 
-- One action, **Send message**, with every field of the Honk ingestion API.
+- One action, **Send message**, with every field of the Honk! Honk! ingestion API.
 - Retries never notify twice: every message carries an idempotency key, by default built from
   the execution, the node and the item.
 - Clear errors for invalid fields, a wrong key, quotas and rate limits.
@@ -20,7 +20,7 @@ a failed backup, a finished import.
 ## Installation
 
 **Self-hosted n8n:** Settings → **Community Nodes** → **Install** → enter `n8n-nodes-honk` →
-confirm → **Install**. The **Honk** node then appears in the nodes panel.
+confirm → **Install**. The **Honk! Honk!** node then appears in the nodes panel.
 
 Without the UI (Docker or npm installs), in the n8n user folder:
 
@@ -34,21 +34,21 @@ for queue mode and other setups.
 
 ## Credentials
 
-Create a **Honk API** credential:
+Create a **Honk! Honk! API** credential:
 
 | Field | Value |
 |---|---|
-| Server URL | `https://honk-honk.app` (the default), or the base address of your own Honk server |
-| Ingestion Key | a project ingestion key (`honk_…`): in Honk, open the project → **Keys** → create a key |
+| Server URL | `https://honk-honk.app` (the default), or the base address of your own Honk! Honk! server |
+| Ingestion Key | a project ingestion key (`honk_…`): in Honk! Honk!, open the project → **Keys** → create a key |
 
 **Test** checks the key without sending anything to your phone: it posts an empty message,
-which Honk rejects after accepting the key (`422 message is required`). Nothing is stored.
+which Honk! Honk! rejects after accepting the key (`422 message is required`). Nothing is stored.
 
 The ingestion key can only send messages into its project. Treat it as a secret.
 
 ## Usage
 
-Add the **Honk** node and choose **Message → Send**.
+Add the **Honk! Honk!** node and choose **Message → Send**.
 
 | Parameter | Notes |
 |---|---|
@@ -62,22 +62,22 @@ Add the **Honk** node and choose **Message → Send**.
 | Additional Fields → Source, Environment, Channel | up to 64, 32 and 64 characters; defaults `api`, `default`, `general` |
 | Additional Fields → URL | an https link shown as "Open link" |
 | Additional Fields → Image URL | an https image shown with the notification |
-| Additional Fields → Actions | up to 3 buttons, each a title (up to 40 characters) and a URL: `https://…`, `mailto:` an address, `tel:` or `sms:` a number. The first is the main one; Honk opens a link only when you tap its button |
+| Additional Fields → Actions | up to 3 buttons, each a title (up to 40 characters) and a URL: `https://…`, `mailto:` an address, `tel:` or `sms:` a number. The first is the main one; Honk! Honk! opens a link only when you tap its button |
 | Additional Fields → Metadata | up to 16 name/value fields |
 | Additional Fields → Occurred At | when it happened at the source |
 | Options → Idempotency Key | see below |
 
-The node sends one request per input item and outputs Honk's answer for each:
+The node sends one request per input item and outputs the server's answer for each:
 
 ```json
 { "id": "msg_01k6…", "status": "accepted", "duplicate": false, "received_at": "2026-10-04T12:20:05.123Z" }
 ```
 
-`accepted` means Honk has stored the message; it then groups it and pushes it to your phone.
+`accepted` means Honk! Honk! has stored the message; it then groups it and pushes it to your phone.
 
 ### Idempotency: retries never notify twice
 
-Every message carries an idempotency key. Honk accepts a key once in 24 hours: sending the same
+Every message carries an idempotency key. Honk! Honk! accepts a key once in 24 hours: sending the same
 message with the same key again returns the original `id` with `duplicate: true` and nothing is
 pushed twice.
 
@@ -91,8 +91,8 @@ The same key with a different message is rejected as a conflict.
 ## Example workflow
 
 [`examples/quote-request.json`](examples/quote-request.json): a webhook receives a quote request
-and Honk pushes it to your phone, one group and one idempotency key per request. Import it with
-**Workflows → Import from File**, pick your Honk API credential in the Honk node, and send:
+and Honk! Honk! pushes it to your phone, one group and one idempotency key per request. Import it with
+**Workflows → Import from File**, pick your Honk! Honk! API credential in the Honk! Honk! node, and send:
 
 ```sh
 curl -X POST https://your-n8n.example.com/webhook/quote-request \
@@ -102,14 +102,14 @@ curl -X POST https://your-n8n.example.com/webhook/quote-request \
 
 ## Errors
 
-| Honk answer | n8n error | What to do |
+| Server answer | n8n error | What to do |
 |---|---|---|
-| invalid fields (checked before sending, or `422` from Honk) | "Invalid message: …" / "Honk rejected the message", every field in the details | fix the parameters |
-| `401 invalid_key` | "The Honk ingestion key is invalid or revoked" | fix the credential |
+| invalid fields (checked before sending, or `422` from Honk! Honk!) | "Invalid message: …" / "Honk! Honk! rejected the message", every field in the details | fix the parameters |
+| `401 invalid_key` | "The Honk! Honk! ingestion key is invalid or revoked" | fix the credential |
 | `403 priority_not_allowed` | "This ingestion key may not send urgent messages" | another priority, or allow urgent for the key |
 | `409 idempotency_conflict` | "This idempotency key was already used with a different message" | a new key, or the original message |
 | `429 quota_exceeded` | "The daily message quota … is used up" (resets at midnight UTC) | wait, or a bigger plan |
-| `429 rate_limited`, `5xx`, network | "Honk asked to slow down" / "Honk is temporarily unavailable" | enable **Retry On Fail** (safe: same key) |
+| `429 rate_limited`, `5xx`, network | "Honk! Honk! asked to slow down" / "Honk! Honk! is temporarily unavailable" | enable **Retry On Fail** (safe: same key) |
 
 With **Settings → On Error → Continue**, a failed item becomes an output item with `error`,
 `description`, `httpCode` and `idempotencyKey`, and the other items are still sent.
@@ -133,8 +133,8 @@ from GitHub Actions with provenance (see `CHANGELOG.md`).
 
 ## Links
 
-- [honk-honk.app](https://honk-honk.app): the Honk inbox (web, iPhone).
-- Honk SDKs: [Node.js](https://github.com/honk-hq/node), [PHP / Laravel](https://github.com/honk-hq/php),
+- [honk-honk.app](https://honk-honk.app): the Honk! Honk! inbox (web, iPhone).
+- Honk! Honk! SDKs: [Node.js](https://github.com/honk-hq/node), [PHP / Laravel](https://github.com/honk-hq/php),
   [Go + CLI](https://github.com/honk-hq/go), [Swift](https://github.com/honk-hq/honk-swift),
   [Kotlin / Java](https://github.com/honk-hq/kotlin), [Rust](https://github.com/honk-hq/rust).
 

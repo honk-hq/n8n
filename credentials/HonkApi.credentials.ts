@@ -9,7 +9,7 @@ import type {
 export class HonkApi implements ICredentialType {
 	name = 'honkApi';
 
-	displayName = 'Honk API';
+	displayName = 'Honk! Honk! API';
 
 	icon: Icon = { light: 'file:../icons/honk.svg', dark: 'file:../icons/honk.dark.svg' };
 
@@ -23,7 +23,7 @@ export class HonkApi implements ICredentialType {
 			default: 'https://honk-honk.app',
 			required: true,
 			placeholder: 'e.g. https://honk-honk.app',
-			description: 'The base address of your Honk server',
+			description: 'The base address of your Honk! Honk! server',
 		},
 		{
 			displayName: 'Ingestion Key',
@@ -32,7 +32,7 @@ export class HonkApi implements ICredentialType {
 			typeOptions: { password: true },
 			default: '',
 			required: true,
-			description: 'A project ingestion key (honk_…) from Project → Keys in Honk',
+			description: 'A project ingestion key (honk_…) from Project → Keys in Honk! Honk!',
 		},
 	];
 
@@ -65,7 +65,7 @@ export class HonkApi implements ICredentialType {
 				properties: {
 					key: 'error.code',
 					value: 'invalid_key',
-					message: 'Invalid or revoked ingestion key. Create one under Project → Keys in Honk.',
+					message: 'Invalid or revoked ingestion key. Create one under Project → Keys in Honk! Honk!',
 				},
 			},
 			{
@@ -89,7 +89,7 @@ export class HonkApi implements ICredentialType {
 				properties: {
 					key: 'error.code',
 					value: 'not_found',
-					message: 'No Honk server at this URL. Use the base address, e.g. https://honk-honk.app.',
+					message: 'No Honk! Honk! server at this URL. Use the base address, e.g. https://honk-honk.app.',
 				},
 			},
 			{
@@ -97,7 +97,7 @@ export class HonkApi implements ICredentialType {
 				properties: {
 					key: 'error.code',
 					value: 'unavailable',
-					message: 'Honk is temporarily unavailable. Try again in a minute.',
+					message: 'Honk! Honk! is temporarily unavailable. Try again in a minute.',
 				},
 			},
 			{
@@ -106,7 +106,7 @@ export class HonkApi implements ICredentialType {
 				properties: {
 					key: 'error.code',
 					value: undefined,
-					message: 'This URL did not answer like a Honk server. Use the base address, e.g. https://honk-honk.app.',
+					message: 'This URL did not answer like a Honk! Honk! server. Use the base address, e.g. https://honk-honk.app.',
 				},
 			},
 		],

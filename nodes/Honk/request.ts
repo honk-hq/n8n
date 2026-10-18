@@ -308,7 +308,7 @@ export function checkMessage(body: MessageBody): FieldProblem[] {
 	});
 	if (problems.length === 0) {
 		const size = utf8Bytes(JSON.stringify(body));
-		if (size > LIMITS.bodyBytes) add('body', 'too_long', `The message is ${size} bytes as JSON; Honk accepts at most 16 KiB`);
+		if (size > LIMITS.bodyBytes) add('body', 'too_long', `The message is ${size} bytes as JSON; Honk! Honk! accepts at most 16 KiB`);
 	}
 	return problems;
 }
@@ -366,15 +366,15 @@ export function describeApiError(
 	if ([400, 413, 415, 422].includes(status)) {
 		return {
 			code: code || 'validation_failed',
-			message: 'Honk rejected the message',
+			message: 'Honk! Honk! rejected the message',
 			description: (fields.length > 0 ? fields.join('\n') : serverMessage || `HTTP ${status}`) + requestId,
 		};
 	}
 	if (status === 401) {
 		return {
 			code: code || 'invalid_key',
-			message: 'The Honk ingestion key is invalid or revoked',
-			description: 'Check the Honk API credential: use a project ingestion key (honk_…) from Project → Keys in Honk.',
+			message: 'The Honk! Honk! ingestion key is invalid or revoked',
+			description: 'Check the Honk! Honk! API credential: use a project ingestion key (honk_…) from Project → Keys in Honk! Honk!',
 		};
 	}
 	if (status === 403) {
@@ -382,20 +382,20 @@ export function describeApiError(
 			return {
 				code,
 				message: 'This ingestion key may not send urgent messages',
-				description: 'Choose another priority, or allow urgent for this key in Honk (Project → Keys).',
+				description: 'Choose another priority, or allow urgent for this key in Honk! Honk! (Project → Keys).',
 			};
 		}
 		return {
 			code: code || 'forbidden',
-			message: 'Honk does not accept messages for this project right now',
-			description: `${serverMessage || 'Forbidden'} (${code || 'HTTP 403'}). Check the project and workspace in Honk.`,
+			message: 'Honk! Honk! does not accept messages for this project right now',
+			description: `${serverMessage || 'Forbidden'} (${code || 'HTTP 403'}). Check the project and workspace in Honk! Honk!`,
 		};
 	}
 	if (status === 404) {
 		return {
 			code: code || 'not_found',
-			message: 'No Honk server at this URL',
-			description: 'Use the base address of your Honk server in the credential, e.g. https://honk-honk.app.',
+			message: 'No Honk! Honk! server at this URL',
+			description: 'Use the base address of your Honk! Honk! server in the credential, e.g. https://honk-honk.app.',
 		};
 	}
 	if (status === 409) {
@@ -403,17 +403,17 @@ export function describeApiError(
 			code: code || 'idempotency_conflict',
 			message: 'This idempotency key was already used with a different message',
 			description:
-				'Honk keeps idempotency keys for 24 hours. Send the original message again, or set a new key under Options → Idempotency Key.',
+				'Honk! Honk! keeps idempotency keys for 24 hours. Send the original message again, or set a new key under Options → Idempotency Key.',
 		};
 	}
 	if (status === 429) {
 		const wait = retryAfter ? ` Try again in ${retryAfter} s.` : '';
 		if (code === 'quota_exceeded') {
-			return { code, message: 'The daily message quota of this Honk workspace is used up', description: `It resets at midnight UTC.${wait}` };
+			return { code, message: 'The daily message quota of this Honk! Honk! workspace is used up', description: `It resets at midnight UTC.${wait}` };
 		}
 		return {
 			code: code || 'rate_limited',
-			message: 'Honk asked to slow down',
+			message: 'Honk! Honk! asked to slow down',
 			description: `${serverMessage || 'Too many requests'}.${wait} Settings → Retry On Fail retries safely with the same idempotency key.`,
 		};
 	}
@@ -421,16 +421,16 @@ export function describeApiError(
 		const location = header('location');
 		return {
 			code: code || 'redirect',
-			message: 'Honk answered with a redirect',
-			description: `Use the final https address of your Honk server in the credential${location ? ` (redirected to ${location})` : ''}.`,
+			message: 'Honk! Honk! answered with a redirect',
+			description: `Use the final https address of your Honk! Honk! server in the credential${location ? ` (redirected to ${location})` : ''}.`,
 		};
 	}
 	if (status >= 500) {
 		return {
 			code: code || 'server_error',
-			message: `Honk is temporarily unavailable (HTTP ${status})`,
+			message: `Honk! Honk! is temporarily unavailable (HTTP ${status})`,
 			description: `${serverMessage || 'Server error'}. Settings → Retry On Fail retries safely with the same idempotency key.${requestId}`,
 		};
 	}
-	return { code, message: `Unexpected answer from Honk (HTTP ${status})`, description: serverMessage + requestId };
+	return { code, message: `Unexpected answer from Honk! Honk! (HTTP ${status})`, description: serverMessage + requestId };
 }

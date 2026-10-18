@@ -1,7 +1,7 @@
 {
   "name": "n8n-nodes-honk",
   "version": "0.1.2",
-  "description": "n8n community node for Honk (honk-honk.app): send messages from your workflows to your phone, with idempotency keys so retries never notify twice.",
+  "description": "n8n community node for Honk! Honk! (honk-honk.app): send messages from your workflows to your phone, with idempotency keys so retries never notify twice.",
   "license": "MIT",
   "homepage": "https://github.com/honk-hq/n8n#readme",
   "keywords": [
@@ -14,7 +14,7 @@
     "alerts"
   ],
   "author": {
-    "name": "Honk",
+    "name": "Honk! Honk!",
     "email": "accounts@honk-honk.app",
     "url": "https://honk-honk.app"
   },

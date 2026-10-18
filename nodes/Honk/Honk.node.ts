@@ -27,15 +27,15 @@ interface FullResponse {
 
 export class Honk implements INodeType {
 	description: INodeTypeDescription = {
-		displayName: 'Honk',
+		displayName: 'Honk! Honk!',
 		name: 'honk',
 		icon: { light: 'file:../../icons/honk.svg', dark: 'file:../../icons/honk.dark.svg' },
 		group: ['output'],
 		version: [1],
 		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
-		description: 'Send messages to your Honk inbox and phone',
+		description: 'Send messages to your Honk! Honk! inbox and phone',
 		defaults: {
-			name: 'Honk',
+			name: 'Honk! Honk!',
 		},
 		inputs: [NodeConnectionTypes.Main],
 		outputs: [NodeConnectionTypes.Main],
@@ -66,7 +66,7 @@ export class Honk implements INodeType {
 						name: 'Send',
 						value: 'send',
 						action: 'Send message',
-						description: 'Send a message to your Honk inbox; it pushes to your phone',
+						description: 'Send a message to your Honk! Honk! inbox; it pushes to your phone',
 					},
 				],
 				default: 'send',
@@ -122,7 +122,7 @@ export class Honk implements INodeType {
 						placeholder: 'Add Action',
 						default: {},
 						description:
-							'Up to 3 buttons on the message, in this order; the first is the main one. Honk opens a link only when you tap its button.',
+							'Up to 3 buttons on the message, in this order; the first is the main one. Honk! Honk! opens a link only when you tap its button.',
 						options: [
 							{
 								displayName: 'Action',
@@ -210,7 +210,7 @@ export class Honk implements INodeType {
 						type: 'string',
 						default: '',
 						placeholder: 'e.g. https://example.com/image.png',
-						description: 'An https image Honk shows with the notification',
+						description: 'An https image that Honk! Honk! shows with the notification',
 					},
 					{
 						displayName: 'Metadata',
@@ -296,7 +296,7 @@ export class Honk implements INodeType {
 						default: '',
 						placeholder: 'e.g. request-4812',
 						description:
-							'A stable key for this event (1–128 printable ASCII characters). Honk accepts a key once in 24 hours, so a repeated run never notifies twice. Default: built from the execution ID, this node and the item.',
+							'A stable key for this event (1–128 printable ASCII characters). Honk! Honk! accepts a key once in 24 hours, so a repeated run never notifies twice. Default: built from the execution ID, this node and the item.',
 					},
 				],
 			},
@@ -355,8 +355,8 @@ export class Honk implements INodeType {
 				} catch (error) {
 					throw new NodeApiError(this.getNode(), error as JsonObject, {
 						itemIndex: i,
-						message: 'Could not reach Honk',
-						description: `${(error as Error).message}. Check the server URL in the Honk API credential.`,
+						message: 'Could not reach Honk! Honk!',
+						description: `${(error as Error).message}. Check the server URL in the Honk! Honk! API credential.`,
 					});
 				}
 				if (response.statusCode < 200 || response.statusCode >= 300) {

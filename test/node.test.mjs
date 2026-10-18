@@ -98,13 +98,13 @@ describe('execute', () => {
 	});
 
 	for (const [response, message, httpCode] of [
-		[apiError(422, 'validation_failed', 'Invalid', { fields: [{ field: 'occurred_at', code: 'invalid_format', message: 'must be RFC 3339' }] }), 'Honk rejected the message', '422'],
-		[apiError(401, 'invalid_key'), 'The Honk ingestion key is invalid or revoked', '401'],
+		[apiError(422, 'validation_failed', 'Invalid', { fields: [{ field: 'occurred_at', code: 'invalid_format', message: 'must be RFC 3339' }] }), 'Honk! Honk! rejected the message', '422'],
+		[apiError(401, 'invalid_key'), 'The Honk! Honk! ingestion key is invalid or revoked', '401'],
 		[apiError(403, 'priority_not_allowed'), 'This ingestion key may not send urgent messages', '403'],
-		[apiError(404, 'not_found'), 'No Honk server at this URL', '404'],
+		[apiError(404, 'not_found'), 'No Honk! Honk! server at this URL', '404'],
 		[apiError(409, 'idempotency_conflict'), 'This idempotency key was already used with a different message', '409'],
-		[apiError(429, 'quota_exceeded', 'quota', {}, { 'retry-after': '3600' }), 'The daily message quota of this Honk workspace is used up', '429'],
-		[{ statusCode: 502, headers: {}, body: '<html>Bad gateway</html>' }, 'Honk is temporarily unavailable (HTTP 502)', '502'],
+		[apiError(429, 'quota_exceeded', 'quota', {}, { 'retry-after': '3600' }), 'The daily message quota of this Honk! Honk! workspace is used up', '429'],
+		[{ statusCode: 502, headers: {}, body: '<html>Bad gateway</html>' }, 'Honk! Honk! is temporarily unavailable (HTTP 502)', '502'],
 	]) {
 		test(`HTTP ${response.statusCode} ${response.body.error?.code ?? ''} becomes a readable NodeApiError`, async () => {
 			const { result } = run({ params: base, responses: [response] });
@@ -127,8 +127,8 @@ describe('execute', () => {
 			const { result } = run({ params: base, responses: [thrown] });
 			await assert.rejects(result, (err) => {
 				assert.ok(err instanceof NodeApiError);
-				assert.match(err.message, /Could not reach Honk|refused the connection/);
-				assert.match(err.description, /Check the server URL in the Honk API credential/);
+				assert.match(err.message, /Could not reach Honk! Honk!|refused the connection/);
+				assert.match(err.description, /Check the server URL in the Honk! Honk! API credential/);
 				return true;
 			});
 		}
@@ -141,7 +141,7 @@ describe('execute', () => {
 		const [out] = await result;
 		assert.equal(calls.length, 2, 'the invalid item sends nothing');
 		assert.equal(out.length, 3);
-		assert.equal(out[0].json.error, 'The Honk ingestion key is invalid or revoked');
+		assert.equal(out[0].json.error, 'The Honk! Honk! ingestion key is invalid or revoked');
 		assert.equal(out[0].json.httpCode, '401');
 		assert.equal(out[0].json.idempotencyKey, 'n8n-42-node-1-0');
 		assert.match(out[1].json.error, /Message is required/);

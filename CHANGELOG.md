@@ -11,9 +11,16 @@ All notable changes to `n8n-nodes-honk` are documented here. The format follows
 - **Actions** under Additional Fields: up to three buttons on the message, each a title (up to
   40 characters) and an `https://`, `mailto:`, `tel:` or `sms:` URL, sent as `actions` in the
   order given (contracts/API.md §13). Empty rows are left out. More than three, a missing title
-  or URL, or a link Honk refuses (another scheme, a `mailto:` with more than one address or with
+  or URL, or a link Honk! Honk! refuses (another scheme, a `mailto:` with more than one address or with
   keys other than `subject` and `body`, a phone number with letters or an extension) fail before
   anything is sent. Messages without actions are sent exactly as before.
+
+### Changed
+
+- The product is now called Honk! Honk!: the node is **Honk! Honk!**, the credential
+  **Honk! Honk! API**, and the descriptions and error messages use the new name. The node
+  type (`n8n-nodes-honk.honk`) and the credential type (`honkApi`) are unchanged, so existing
+  workflows and credentials keep working.
 
 ## [0.1.2] - 2026-10-06
 

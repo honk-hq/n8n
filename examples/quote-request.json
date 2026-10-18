@@ -1,5 +1,5 @@
 {
-	"name": "Honk: notify me about a quote request",
+	"name": "Quote request to Honk! Honk!",
 	"nodes": [
 		{
 			"parameters": {
@@ -39,21 +39,21 @@
 				}
 			},
 			"id": "9a8b7c6d-5e4f-4a3b-9c2d-1e0f9a8b7c6d",
-			"name": "Honk",
+			"name": "Honk! Honk!",
 			"type": "n8n-nodes-honk.honk",
 			"typeVersion": 1,
 			"position": [280, 0],
 			"credentials": {
 				"honkApi": {
 					"id": "",
-					"name": "Honk API"
+					"name": "Honk! Honk! API"
 				}
 			}
 		}
 	],
 	"connections": {
 		"Quote Request": {
-			"main": [[{ "node": "Honk", "type": "main", "index": 0 }]]
+			"main": [[{ "node": "Honk! Honk!", "type": "main", "index": 0 }]]
 		}
 	},
 	"settings": {
