@@ -6,6 +6,12 @@ All notable changes to `n8n-nodes-honk` are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Severity** options show the standard level name with the Honk name in parentheses: Info
+  (Light), Success (Beep), Warning (Loud), Error (Long), Critical (Blast), instead of "Light
+  (Info)" and so on. The values sent are unchanged.
+
 ## [0.2.0] - 2026-10-18
 
 ### Added

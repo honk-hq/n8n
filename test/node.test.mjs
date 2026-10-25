@@ -20,6 +20,16 @@ describe('description', () => {
 		assert.deepEqual(op.options.map((o) => [o.value, o.action]), [['send', 'Send message']]);
 		const severity = d.properties.find((p) => p.name === 'severity');
 		assert.deepEqual(severity.options.map((o) => o.value).sort(), ['critical', 'error', 'info', 'success', 'warning']);
+		assert.deepEqual(
+			severity.options.map((o) => [o.value, o.name]),
+			[
+				['critical', 'Critical (Blast)'],
+				['error', 'Error (Long)'],
+				['info', 'Info (Light)'],
+				['success', 'Success (Beep)'],
+				['warning', 'Warning (Loud)'],
+			],
+		);
 		assert.equal(severity.default, 'info');
 		const fields = d.properties.find((p) => p.name === 'additionalFields').options;
 		const actions = fields.find((o) => o.name === 'actions');
