@@ -54,7 +54,7 @@ Add the **Honk! Honk!** node and choose **Message → Send**.
 |---|---|
 | Message | required; up to 8192 bytes, line breaks kept |
 | Title | one line, up to 160 characters; empty uses the first line of the message |
-| Severity | the Honk scale: Light Honk (Info), Beep-Beep (Success), Loud Honk (Warning), Long Honk (Error), Blast (Critical). Error and critical push at least as high priority |
+| Severity | the Honk scale: Light (Info), Beep (Success), Loud (Warning), Long (Error), Blast (Critical). Error and critical push at least as high priority |
 | Additional Fields → Priority | Low, Normal, High, Urgent (urgent needs a key that allows it) |
 | Additional Fields → Group Key | messages with the same key form one group: the first pushes, repeats update it calmly. Use one key per request (`requests/{{ $json.id }}`), a shared key only for repeats of the same problem |
 | Additional Fields → Event Type | Event, Problem (opens an incident for the group), Recovery (closes it; needs a group key) |
