@@ -11,7 +11,9 @@ a failed backup, a finished import.
 - One action, **Send message**, with every field of the Honk! Honk! ingestion API.
 - Retries never notify twice: every message carries an idempotency key, by default built from
   the execution, the node and the item.
-- Clear errors for invalid fields, a wrong key, quotas and rate limits.
+- The server delivers first: what does not fit is shortened or left out, the message is sent
+  anyway, and each correction comes back in the output's `warnings`.
+- Clear errors for a refused message, a wrong key, quotas and rate limits.
 - No runtime dependencies.
 
 [Installation](#installation) · [Credentials](#credentials) · [Usage](#usage) ·
@@ -50,30 +52,41 @@ The ingestion key can only send messages into its project. Treat it as a secret.
 
 Add the **Honk! Honk!** node and choose **Message → Send**.
 
+The essentials:
+
 | Parameter | Notes |
 |---|---|
-| Message | required; up to 8192 bytes, line breaks kept |
-| Title | one line, up to 160 characters; empty uses the first line of the message |
-| Severity | Info (Light), Success (Beep), Warning (Loud), Error (Long), Critical (Blast): the standard level name with the Honk name in parentheses; sent as `info`, `success`, `warning`, `error`, `critical`. Error and critical push at least as high priority |
-| Additional Fields → Priority | Low, Normal, High, Urgent (urgent needs a key that allows it) |
-| Additional Fields → Group Key | messages with the same key form one group: the first pushes, repeats update it calmly. Use one key per request (`requests/{{ $json.id }}`), a shared key only for repeats of the same problem |
-| Additional Fields → Event Type | Event, Problem (opens an incident for the group), Recovery (closes it; needs a group key) |
-| Additional Fields → Category | Automation, Backups, Customers, Deployments, Infrastructure, Other, Payments, Personal, Sales, Security |
-| Additional Fields → Source, Environment, Channel | up to 64, 32 and 64 characters; defaults `api`, `default`, `general` |
-| Additional Fields → URL | an https link shown as "Open link" |
-| Additional Fields → Image URL | an https image shown with the notification |
-| Additional Fields → Actions | up to 3 buttons, each a title (up to 40 characters) and a URL: `https://…`, `mailto:` an address, `tel:` or `sms:` a number. The first is the main one; Honk! Honk! opens a link only when you tap its button |
-| Additional Fields → Metadata | up to 16 name/value fields |
-| Additional Fields → Occurred At | when it happened at the source |
+| Message | the text, line breaks kept. A message needs a Message, a Title or both |
+| Title | one line; empty uses the first line of the message |
+| Severity | the level: Info (Light), Success (Beep), Warning (Loud), Error (Long), Critical (Blast), the standard name with the Honk name in parentheses; sent as `info`, `success`, `warning`, `error`, `critical`. The level alone decides how loudly the phone honks |
+| Additional Fields → Group Key | messages with the same key form one group: the first pushes, repeats update it calmly. Use one key per request (`requests/{{ $json.id }}`), a shared key only for repeats of the same problem. Without a key, messages group by their title |
+| Additional Fields → Event Type | Event, Problem (opens an incident for the group), Recovery (closes it) |
 | Options → Idempotency Key | see below |
 
-The node sends one request per input item and outputs the server's answer for each:
+Also under Additional Fields: Priority, Category, Source, Environment, Channel, URL (shown as
+"Open link"), Image URL, Actions (up to 3 buttons, each a title and an `https://`, `mailto:`,
+`tel:` or `sms:` URL; Honk! Honk! opens a link only when you tap its button), Metadata and
+Occurred At.
+
+The node checks only that a message or a title is set (and the 16 KiB size limit). Everything
+else goes to Honk! Honk! as you entered it, and the server delivers first: what is too long is
+shortened, an invalid optional value (an `http://` link, a fourth button) is left out, and the
+message is still sent. The node sends one request per input item and outputs the server's
+answer for each, with what it corrected:
 
 ```json
-{ "id": "msg_01k6…", "status": "accepted", "duplicate": false, "received_at": "2026-10-04T12:20:05.123Z" }
+{
+  "id": "msg_01k6…",
+  "status": "accepted",
+  "duplicate": false,
+  "received_at": "2026-10-04T12:20:05.123Z",
+  "warnings": [{ "field": "actions[1].url", "code": "ignored", "message": "…; left out" }]
+}
 ```
 
-`accepted` means Honk! Honk! has stored the message; it then groups it and pushes it to your phone.
+`warnings` is `[]` when nothing was corrected. When it is not, the node also shows a warning
+hint in the output pane. `accepted` means Honk! Honk! has stored the message; it then groups it
+and pushes it to your phone.
 
 ### Idempotency: retries never notify twice
 
@@ -104,9 +117,8 @@ curl -X POST https://your-n8n.example.com/webhook/quote-request \
 
 | Server answer | n8n error | What to do |
 |---|---|---|
-| invalid fields (checked before sending, or `422` from Honk! Honk!) | "Invalid message: …" / "Honk! Honk! rejected the message", every field in the details | fix the parameters |
+| no message and no title (checked before sending), or a `4xx` such as `422 validation_failed` | "Invalid message: …" / "Honk! Honk! rejected the message"; the details list the server's code and message, every field and the request id | fix the parameters |
 | `401 invalid_key` | "The Honk! Honk! ingestion key is invalid or revoked" | fix the credential |
-| `403 priority_not_allowed` | "This ingestion key may not send urgent messages" | another priority, or allow urgent for the key |
 | `409 idempotency_conflict` | "This idempotency key was already used with a different message" | a new key, or the original message |
 | `429 quota_exceeded` | "The daily message quota … is used up" (resets at midnight UTC) | wait, or a bigger plan |
 | `429 rate_limited`, `5xx`, network | "Honk! Honk! asked to slow down" / "Honk! Honk! is temporarily unavailable" | enable **Retry On Fail** (safe: same key) |

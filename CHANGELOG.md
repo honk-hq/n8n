@@ -6,8 +6,25 @@ All notable changes to `n8n-nodes-honk` are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- The output of every item has `warnings`: what the server corrected in the accepted message
+  (`{ field, code, message }`, e.g. a title shortened or an invalid button left out), `[]` when
+  nothing. When there are some, the node also shows a warning hint in the output pane.
+- A message can be sent with only a **Title**: **Message** is no longer required, one of the two
+  is.
+
 ### Changed
 
+- The node no longer checks field contents before sending (lengths, links, buttons, metadata,
+  levels, a recovery without a group key). The server now delivers first: it corrects what it
+  can, sends the message and returns `warnings`. Only a message without message and title, a
+  body over 16 KiB and an invalid idempotency key fail before sending.
+- Errors from Honk! Honk! show the server's code and message, every field and the request id in
+  the details.
+- Removed the special error for `403 priority_not_allowed`: the server now lowers urgent to high
+  with a `downgraded` warning. Severity and Priority descriptions say the level alone decides how
+  loudly the phone honks.
 - **Severity** options show the standard level name with the Honk name in parentheses: Info
   (Light), Success (Beep), Warning (Loud), Error (Long), Critical (Blast), instead of "Light
   (Info)" and so on. The values sent are unchanged.

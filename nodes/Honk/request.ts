@@ -1,42 +1,14 @@
-// Builds and checks the request for POST /v1/messages. Pure functions with no n8n or network
-// access, so they are unit-tested directly (test/request.test.mjs).
+// Builds the request for POST /v1/messages and reads the answer. Pure functions with no n8n or
+// network access, so they are unit-tested directly (test/request.test.mjs).
 //
-// The checks are light and mirror the API's rules (required message, lengths, https links,
-// metadata shape, action buttons); the server stays authoritative and reports anything else as
-// field errors.
+// Field contents are not checked here: the server delivers first, corrects what it can and
+// lists each correction in the 202's `warnings`, which the node outputs. Only what the server
+// would refuse outright and is cheap to see is checked before sending: a message or a title,
+// and the 16 KiB body.
 
 export const DEFAULT_URL = 'https://honk-honk.app';
 
-export const SEVERITIES = ['info', 'success', 'warning', 'error', 'critical'] as const;
-export const PRIORITIES = ['low', 'normal', 'high', 'urgent'] as const;
-export const EVENT_TYPES = ['event', 'problem', 'recovery'] as const;
-export const CATEGORIES = [
-	'infrastructure',
-	'security',
-	'backups',
-	'deployments',
-	'payments',
-	'customers',
-	'sales',
-	'automation',
-	'personal',
-	'other',
-] as const;
-
-const LIMITS = {
-	bodyBytes: 16 * 1024,
-	messageBytes: 8192,
-	title: 160,
-	source: 64,
-	environment: 32,
-	channel: 64,
-	groupKey: 128,
-	urlBytes: 2048,
-	metadataKeys: 16,
-	metadataString: 512,
-	actions: 3,
-	actionTitle: 40,
-};
+const MAX_BODY_BYTES = 16 * 1024;
 
 export type MetadataValue = string | number | boolean;
 
@@ -69,7 +41,7 @@ export interface SendInput {
 
 /** The JSON body of POST /v1/messages (snake_case, as in contracts/openapi.yaml). */
 export interface MessageBody {
-	message: string;
+	message?: string;
 	title?: string;
 	severity?: string;
 	priority?: string;
@@ -110,7 +82,9 @@ function metadataValue(value: unknown): MetadataValue {
  */
 export function buildMessage(input: SendInput): MessageBody {
 	const f = input.additionalFields ?? {};
-	const body: MessageBody = { message: input.message === undefined || input.message === null ? '' : String(input.message) };
+	const body: MessageBody = {};
+	const message = input.message === undefined || input.message === null ? '' : String(input.message);
+	if (message.trim() !== '') body.message = message;
 	const set = (key: keyof MessageBody, value: unknown) => {
 		const v = text(value);
 		if (v !== undefined) (body as unknown as Record<string, unknown>)[key] = v;
@@ -129,7 +103,7 @@ export function buildMessage(input: SendInput): MessageBody {
 	const occurredAt = text(f.occurredAt);
 	if (occurredAt !== undefined) {
 		const t = new Date(occurredAt);
-		// An unparseable date is sent as typed, so the server reports it on occurred_at.
+		// An unparseable date is sent as typed; the server leaves it out with a warning.
 		body.occurred_at = Number.isNaN(t.getTime()) ? occurredAt : t.toISOString();
 	}
 	const entries = f.metadata?.values ?? [];
@@ -141,7 +115,7 @@ export function buildMessage(input: SendInput): MessageBody {
 		}
 		if (Object.keys(metadata).length > 0) body.metadata = metadata;
 	}
-	// Rows left completely empty are skipped; a half-filled one is sent so its field is reported.
+	// Rows left completely empty are skipped; the server leaves out a half-filled one with a warning.
 	const actions: Action[] = [];
 	for (const entry of f.actions?.values ?? []) {
 		const title = text(entry.title) ?? '';
@@ -153,167 +127,20 @@ export function buildMessage(input: SendInput): MessageBody {
 }
 
 const utf8Bytes = (s: string) => new TextEncoder().encode(s).length;
-const chars = (s: string) => Array.from(s).length;
-// Control characters (C0, DEL, C1) and the line/paragraph separators, like the server.
-// Line breaks and tabs are allowed where `allowBreaks` is set.
-function hasControl(value: string, allowBreaks: boolean): boolean {
-	for (const ch of value) {
-		const c = ch.codePointAt(0) ?? 0;
-		if (allowBreaks && (c === 0x09 || c === 0x0a || c === 0x0d)) continue;
-		if (c < 0x20 || (c >= 0x7f && c <= 0x9f) || c === 0x2028 || c === 0x2029) return true;
-	}
-	return false;
-}
 
-function httpsUrl(value: string, image: boolean): boolean {
-	if (utf8Bytes(value) > LIMITS.urlBytes || /[\s\\]/.test(value) || hasControl(value, false)) return false;
-	let u: URL;
-	try {
-		u = new URL(value);
-	} catch {
-		return false;
-	}
-	if (u.protocol !== 'https:' || u.hostname === '' || u.username !== '' || u.password !== '') return false;
-	return !(image && value.includes('#'));
-}
-
-// A phone number as tel: and sms: take it: + only first, then digits and the separators - . ( ),
-// with at least one digit (no ;ext= or percent-encoding).
-const PHONE = /^\+?[0-9().-]*[0-9][0-9().-]*$/;
-// A character of an email address part (RFC 5322 atext, UTF-8 allowed), as the server parses it.
-const ATEXT = '[^\\s\\p{Cc}()<>\\[\\]:;@\\\\,".]';
-const LOCAL_PART = new RegExp(`^${ATEXT}+(?:\\.${ATEXT}+)*$`, 'u');
-const DOMAIN = new RegExp(`^(?:${ATEXT}+(?:\\.${ATEXT}+)+|\\[[!-Z^-~]*\\.[!-Z^-~]*\\])$`, 'u');
-
-/** The address of a mailto: link: exactly one plain address with a dotted domain. */
-function mailAddress(encoded: string): boolean {
-	let address: string;
-	try {
-		address = decodeURIComponent(encoded);
-	} catch {
-		return false;
-	}
-	if (address === '' || /[,<>" ]/.test(address)) return false;
-	const at = address.lastIndexOf('@');
-	return at > 0 && LOCAL_PART.test(address.slice(0, at)) && DOMAIN.test(address.slice(at + 1));
-}
-
-/** The query of a mailto: or sms: link: valid percent-encoding and only the allowed keys. */
-function actionQuery(query: string, allowed: string[]): boolean {
-	if (/%(?![0-9A-Fa-f]{2})/.test(query)) return false;
-	for (const part of query.split('&')) {
-		if (part === '') continue;
-		if (part.includes(';')) return false;
-		let key: string;
-		try {
-			key = decodeURIComponent(part.split('=')[0].replace(/\+/g, ' '));
-		} catch {
-			return false;
-		}
-		if (!allowed.includes(key)) return false;
-	}
-	return true;
-}
-
-/** An action's link: https://, mailto:, tel: or sms: (any case), as the API accepts them. */
-function actionUrl(value: string): boolean {
-	if (utf8Bytes(value) > LIMITS.urlBytes || /\s/.test(value) || hasControl(value, false)) return false;
-	const colon = value.indexOf(':');
-	if (colon < 0) return false;
-	const scheme = value.slice(0, colon).toLowerCase();
-	const rest = value.slice(colon + 1);
-	const q = rest.indexOf('?');
-	const [before, query] = q < 0 ? [rest, ''] : [rest.slice(0, q), rest.slice(q + 1)];
-	// A host right after https:// (the URL parser would also read https:host and https:///host),
-	// valid percent-encoding and no port 0, as the server parses it.
-	if (scheme === 'https')
-		return /^https:\/\/[^/]/i.test(value) && !/%(?![0-9A-Fa-f]{2})/.test(value) && httpsUrl(value, false) && new URL(value).port !== '0';
-	if (scheme === 'mailto') return mailAddress(before) && actionQuery(query, ['subject', 'body']);
-	if (scheme === 'tel') return PHONE.test(rest.replace(/^\/\//, ''));
-	if (scheme === 'sms') return PHONE.test(before) && actionQuery(query, ['body']);
-	return false;
-}
-
-/** The light checks: every problem at once, in the API's field names. */
+/** What the server would refuse outright: no message and no title, or a body over 16 KiB. */
 export function checkMessage(body: MessageBody): FieldProblem[] {
-	const problems: FieldProblem[] = [];
-	const add = (field: string, code: string, message: string) => problems.push({ field, code, message });
-
-	if (body.message === '') add('message', 'required', 'Message is required');
-	else if (utf8Bytes(body.message) > LIMITS.messageBytes)
-		add('message', 'too_long', `Message must be at most ${LIMITS.messageBytes} bytes (got ${utf8Bytes(body.message)})`);
-	else if (body.message.trim() === '') add('message', 'too_short', 'Message must not be blank');
-	else if (hasControl(body.message, true))
-		add('message', 'invalid_format', 'Message must not contain control characters other than line breaks and tabs');
-
-	const short: Array<[keyof MessageBody, string, number]> = [
-		['title', 'Title', LIMITS.title],
-		['source', 'Source', LIMITS.source],
-		['environment', 'Environment', LIMITS.environment],
-		['channel', 'Channel', LIMITS.channel],
-		['group_key', 'Group Key', LIMITS.groupKey],
-	];
-	for (const [field, label, max] of short) {
-		const v = body[field] as string | undefined;
-		if (v === undefined) continue;
-		if (chars(v) > max) add(field, 'too_long', `${label} must be at most ${max} characters`);
-		else if (hasControl(v, false)) add(field, 'invalid_format', `${label} must be one line without control characters`);
+	if (body.message === undefined && body.title === undefined) {
+		return [{ field: 'message', code: 'required', message: 'Set a Message or a Title' }];
 	}
-	const enums: Array<[keyof MessageBody, readonly string[]]> = [
-		['severity', SEVERITIES],
-		['priority', PRIORITIES],
-		['event_type', EVENT_TYPES],
-		['category', CATEGORIES],
-	];
-	for (const [field, allowed] of enums) {
-		const v = body[field] as string | undefined;
-		if (v !== undefined && !allowed.includes(v)) add(field, 'invalid_enum', `Must be one of ${allowed.join(', ')}`);
+	const size = utf8Bytes(JSON.stringify(body));
+	if (size > MAX_BODY_BYTES) {
+		return [{ field: 'body', code: 'too_long', message: `The message is ${size} bytes as JSON; Honk! Honk! accepts at most 16 KiB` }];
 	}
-	if (body.event_type === 'recovery' && body.group_key === undefined)
-		add('group_key', 'requires_group_key', 'A recovery needs a Group Key (the group whose problem it closes)');
-	if (body.url !== undefined && !httpsUrl(body.url, false))
-		add('url', 'invalid_format', 'URL must be an https:// link without credentials, at most 2048 bytes');
-	if (body.image_url !== undefined && !httpsUrl(body.image_url, true))
-		add('image_url', 'invalid_format', 'Image URL must be an https:// link without credentials or #fragment, at most 2048 bytes');
-
-	const metadata = body.metadata ?? {};
-	const keys = Object.keys(metadata);
-	if (keys.length > LIMITS.metadataKeys) add('metadata', 'too_long', `At most ${LIMITS.metadataKeys} metadata fields`);
-	for (const key of keys) {
-		if (!/^[A-Za-z0-9_.-]{1,64}$/.test(key)) {
-			add(`metadata.${key}`, 'invalid_format', 'Metadata names may use letters, digits, _ . and - (at most 64)');
-			continue;
-		}
-		const v = metadata[key];
-		if (typeof v === 'string' && (chars(v) > LIMITS.metadataString || hasControl(v, true)))
-			add(`metadata.${key}`, 'invalid_format', `Metadata values must be at most ${LIMITS.metadataString} characters`);
-		if (typeof v === 'number' && !Number.isFinite(v)) add(`metadata.${key}`, 'invalid_format', 'Numbers must be finite');
-	}
-
-	// Beyond three, the server reports only the count, so the actions themselves aren't checked.
-	const actions = body.actions ?? [];
-	if (actions.length > LIMITS.actions) add('actions', 'too_long', `At most ${LIMITS.actions} actions`);
-	else actions.forEach((action, i) => {
-		const n = i + 1;
-		if (action.title === '') add(`actions[${i}].title`, 'required', `Action ${n} needs a title`);
-		else if (chars(action.title) > LIMITS.actionTitle)
-			add(`actions[${i}].title`, 'too_long', `Action ${n}'s title must be at most ${LIMITS.actionTitle} characters`);
-		else if (hasControl(action.title, false))
-			add(`actions[${i}].title`, 'invalid_format', `Action ${n}'s title must be one line without control characters`);
-		if (action.url === '') add(`actions[${i}].url`, 'required', `Action ${n} needs a URL`);
-		else if (utf8Bytes(action.url) > LIMITS.urlBytes)
-			add(`actions[${i}].url`, 'too_long', `Action ${n}'s URL must be at most ${LIMITS.urlBytes} bytes`);
-		else if (!actionUrl(action.url))
-			add(`actions[${i}].url`, 'invalid_format', `Action ${n}'s URL must be an https://, mailto:, tel: or sms: link without spaces`);
-	});
-	if (problems.length === 0) {
-		const size = utf8Bytes(JSON.stringify(body));
-		if (size > LIMITS.bodyBytes) add('body', 'too_long', `The message is ${size} bytes as JSON; Honk! Honk! accepts at most 16 KiB`);
-	}
-	return problems;
+	return [];
 }
 
-/** 1–128 printable ASCII characters (0x21–0x7E). */
+/** 1–128 printable ASCII characters (0x21–0x7E): a header the HTTP client can send and the server accepts. */
 export function validIdempotencyKey(key: string): boolean {
 	return /^[\x21-\x7e]{1,128}$/.test(key);
 }
@@ -360,42 +187,37 @@ export function describeApiError(
 		return Array.isArray(v) ? String(v[0]) : v === undefined || v === null ? undefined : String(v);
 	};
 	const retryAfter = header('retry-after');
-	const requestId = err.request_id ? ` (request ${err.request_id})` : '';
+	const id = err.request_id ?? header('x-request-id');
+	const requestId = id ? ` (request ${id})` : '';
 	const fields = (err.fields ?? []).map((f) => `${f.field ?? '?'}: ${f.message || f.code || 'invalid'}`);
 
 	if ([400, 413, 415, 422].includes(status)) {
+		const lines = [`${code || 'validation_failed'}: ${serverMessage || `HTTP ${status}`}`, ...fields];
 		return {
 			code: code || 'validation_failed',
 			message: 'Honk! Honk! rejected the message',
-			description: (fields.length > 0 ? fields.join('\n') : serverMessage || `HTTP ${status}`) + requestId,
+			description: lines.join('\n') + requestId,
 		};
 	}
 	if (status === 401) {
 		return {
 			code: code || 'invalid_key',
 			message: 'The Honk! Honk! ingestion key is invalid or revoked',
-			description: 'Check the Honk! Honk! API credential: use a project ingestion key (honk_…) from Project → Keys in Honk! Honk!',
+			description: `Check the Honk! Honk! API credential: use a project ingestion key (honk_…) from Project → Keys in Honk! Honk!${requestId}`,
 		};
 	}
 	if (status === 403) {
-		if (code === 'priority_not_allowed') {
-			return {
-				code,
-				message: 'This ingestion key may not send urgent messages',
-				description: 'Choose another priority, or allow urgent for this key in Honk! Honk! (Project → Keys).',
-			};
-		}
 		return {
 			code: code || 'forbidden',
 			message: 'Honk! Honk! does not accept messages for this project right now',
-			description: `${serverMessage || 'Forbidden'} (${code || 'HTTP 403'}). Check the project and workspace in Honk! Honk!`,
+			description: `${serverMessage || 'Forbidden'} (${code || 'HTTP 403'}). Check the project and workspace in Honk! Honk!${requestId}`,
 		};
 	}
 	if (status === 404) {
 		return {
 			code: code || 'not_found',
 			message: 'No Honk! Honk! server at this URL',
-			description: 'Use the base address of your Honk! Honk! server in the credential, e.g. https://honk-honk.app.',
+			description: `Use the base address of your Honk! Honk! server in the credential, e.g. https://honk-honk.app.${requestId}`,
 		};
 	}
 	if (status === 409) {
@@ -403,18 +225,18 @@ export function describeApiError(
 			code: code || 'idempotency_conflict',
 			message: 'This idempotency key was already used with a different message',
 			description:
-				'Honk! Honk! keeps idempotency keys for 24 hours. Send the original message again, or set a new key under Options → Idempotency Key.',
+				`Honk! Honk! keeps idempotency keys for 24 hours. Send the original message again, or set a new key under Options → Idempotency Key.${requestId}`,
 		};
 	}
 	if (status === 429) {
 		const wait = retryAfter ? ` Try again in ${retryAfter} s.` : '';
 		if (code === 'quota_exceeded') {
-			return { code, message: 'The daily message quota of this Honk! Honk! workspace is used up', description: `It resets at midnight UTC.${wait}` };
+			return { code, message: 'The daily message quota of this Honk! Honk! workspace is used up', description: `It resets at midnight UTC.${wait}${requestId}` };
 		}
 		return {
 			code: code || 'rate_limited',
 			message: 'Honk! Honk! asked to slow down',
-			description: `${serverMessage || 'Too many requests'}.${wait} Settings → Retry On Fail retries safely with the same idempotency key.`,
+			description: `${serverMessage || 'Too many requests'}.${wait} Settings → Retry On Fail retries safely with the same idempotency key.${requestId}`,
 		};
 	}
 	if (status >= 300 && status < 400) {
@@ -433,4 +255,25 @@ export function describeApiError(
 		};
 	}
 	return { code, message: `Unexpected answer from Honk! Honk! (HTTP ${status})`, description: serverMessage + requestId };
+}
+
+/** One correction the server made to an accepted message (the 202's `warnings`). */
+export interface Warning {
+	field: string;
+	code: string;
+	message: string;
+}
+
+/** The `warnings` of a 202, as sent; [] when there are none or the server is older. */
+export function readWarnings(body: unknown): Warning[] {
+	const raw = typeof body === 'object' && body !== null ? (body as { warnings?: unknown }).warnings : undefined;
+	if (!Array.isArray(raw)) return [];
+	return raw
+		.filter((w): w is Record<string, unknown> => typeof w === 'object' && w !== null)
+		.map((w) => ({ field: String(w.field ?? ''), code: String(w.code ?? ''), message: String(w.message ?? '') }));
+}
+
+/** One line per warning, for the execution hint: "title truncated: longer than 160 characters". */
+export function describeWarnings(warnings: Warning[]): string {
+	return warnings.map((w) => `${w.field} ${w.code}${w.message ? `: ${w.message}` : ''}`).join('\n');
 }

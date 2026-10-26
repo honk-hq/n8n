@@ -61,10 +61,10 @@ describe('execute', () => {
 		});
 		assert.deepEqual(calls[1].options.body, { message: 'second', severity: 'info' });
 		assert.equal(calls[1].options.headers['Idempotency-Key'], 'custom-7');
-		// The output is the API's answer, linked to its input item.
+		// The output is the API's answer, with `warnings` always present, linked to its input item.
 		assert.deepEqual(out, [
-			{ json: accepted('msg_1').body, pairedItem: { item: 0 } },
-			{ json: accepted('msg_2', true).body, pairedItem: { item: 1 } },
+			{ json: { ...accepted('msg_1').body, warnings: [] }, pairedItem: { item: 0 } },
+			{ json: { ...accepted('msg_2', true).body, warnings: [] }, pairedItem: { item: 1 } },
 		]);
 	});
 
@@ -87,30 +87,65 @@ describe('execute', () => {
 		assert.equal(again.calls[0].options.headers['Idempotency-Key'], 'n8n-7-abc-0');
 	});
 
-	test('invalid input fails before any request', async () => {
-		const { calls, result } = run({ params: { ...base, message: ' ', additionalFields: { url: 'http://insecure.example' } } });
+	test('only a missing message and title, or a bad idempotency key, fail before any request', async () => {
+		const { calls, result } = run({ params: { ...base, message: ' ', title: '' } });
 		await assert.rejects(result, (err) => {
 			assert.ok(err instanceof NodeOperationError);
-			assert.match(err.message, /Invalid message: Message must not be blank/);
-			assert.match(err.description, /url: URL must be an https:\/\/ link/);
+			assert.match(err.message, /Invalid message: Set a Message or a Title/);
 			return true;
 		});
 		assert.equal(calls.length, 0);
 		const bad = run({ params: { ...base, options: { idempotencyKey: 'has space' } } });
 		await assert.rejects(bad.result, /idempotency key must be 1–128/);
-		const link = run({ params: { ...base, additionalFields: { actions: { values: [{ title: 'Open', url: 'javascript:alert(1)' }] } } } });
-		await assert.rejects(link.result, (err) => {
-			assert.match(err.message, /Invalid message: Action 1's URL must be an https:\/\/, mailto:, tel: or sms: link/);
-			assert.match(err.description, /^actions\[0\]\.url: /);
-			return true;
+	});
+
+	test('field contents go to the server as given; a title alone is enough', async () => {
+		const additionalFields = { url: 'http://insecure.example', actions: { values: [{ title: 'Open', url: 'javascript:alert(1)' }] } };
+		const { calls, result } = run({ params: { ...base, message: '', title: 'Disk 91% full', additionalFields } });
+		await result;
+		assert.deepEqual(calls[0].options.body, {
+			title: 'Disk 91% full',
+			severity: 'warning',
+			url: 'http://insecure.example',
+			actions: [{ title: 'Open', url: 'javascript:alert(1)' }],
 		});
-		assert.equal(link.calls.length, 0);
+	});
+
+	test('the server warnings are in the output and shown as an execution hint', async () => {
+		const warnings = [
+			{ field: 'url', code: 'ignored', message: 'must be an https link; left out' },
+			{ field: 'actions[0].url', code: 'ignored', message: 'not an https, mailto, tel or sms link; left out' },
+		];
+		const items = [{ json: {} }, { json: {} }];
+		const { ctx, calls } = fakeContext({ items, params: base, responses: [{ ...accepted('msg_1'), body: { ...accepted('msg_1').body, warnings } }, accepted('msg_2')] });
+		const hints = [];
+		ctx.addExecutionHints = (...h) => hints.push(...h);
+		const [out] = await new Honk().execute.call(ctx);
+		assert.equal(calls.length, 2);
+		assert.deepEqual(out[0].json.warnings, warnings);
+		assert.equal(out[0].json.id, 'msg_1');
+		assert.deepEqual(out[1].json.warnings, []);
+		assert.deepEqual(hints, [
+			{
+				type: 'warning',
+				location: 'outputPane',
+				message:
+					'Honk! Honk! accepted item 1 and corrected it:\nurl ignored: must be an https link; left out\nactions[0].url ignored: not an https, mailto, tel or sms link; left out',
+			},
+		]);
+	});
+
+	test('without execution hints (older n8n), the warnings are still in the output', async () => {
+		const warnings = [{ field: 'title', code: 'truncated', message: 'shortened' }];
+		const { result } = run({ params: base, responses: [{ ...accepted('msg_1'), body: { ...accepted('msg_1').body, warnings } }] });
+		const [out] = await result;
+		assert.deepEqual(out[0].json.warnings, warnings);
 	});
 
 	for (const [response, message, httpCode] of [
-		[apiError(422, 'validation_failed', 'Invalid', { fields: [{ field: 'occurred_at', code: 'invalid_format', message: 'must be RFC 3339' }] }), 'Honk! Honk! rejected the message', '422'],
+		[apiError(422, 'validation_failed', 'Invalid', { fields: [{ field: 'event_type', code: 'invalid_enum', message: 'must be one of event, problem, recovery' }] }), 'Honk! Honk! rejected the message', '422'],
 		[apiError(401, 'invalid_key'), 'The Honk! Honk! ingestion key is invalid or revoked', '401'],
-		[apiError(403, 'priority_not_allowed'), 'This ingestion key may not send urgent messages', '403'],
+		[apiError(403, 'workspace_suspended'), 'Honk! Honk! does not accept messages for this project right now', '403'],
 		[apiError(404, 'not_found'), 'No Honk! Honk! server at this URL', '404'],
 		[apiError(409, 'idempotency_conflict'), 'This idempotency key was already used with a different message', '409'],
 		[apiError(429, 'quota_exceeded', 'quota', {}, { 'retry-after': '3600' }), 'The daily message quota of this Honk! Honk! workspace is used up', '429'],
@@ -122,7 +157,8 @@ describe('execute', () => {
 				assert.ok(err instanceof NodeApiError, String(err));
 				assert.equal(err.message, message);
 				assert.equal(err.httpCode, httpCode);
-				if (httpCode === '422') assert.match(err.description, /occurred_at: must be RFC 3339/);
+				if (httpCode === '422') assert.equal(err.description, 'validation_failed: Invalid\nevent_type: must be one of event, problem, recovery (request req_test)');
+				if (httpCode !== '502') assert.match(err.description, /\(request req_test\)$/);
 				if (httpCode === '429') assert.match(err.description, /3600 s/);
 				return true;
 			});
@@ -146,7 +182,7 @@ describe('execute', () => {
 
 	test('Continue On Fail turns a failed item into an error item and goes on', async () => {
 		const items = [{ json: {} }, { json: {} }, { json: {} }];
-		const params = [base, { ...base, message: '' }, base];
+		const params = [base, { ...base, message: '', title: '' }, base];
 		const { calls, result } = run({ items, params, continueOnFail: true, responses: [apiError(401, 'invalid_key'), accepted('msg_3')] });
 		const [out] = await result;
 		assert.equal(calls.length, 2, 'the invalid item sends nothing');
@@ -154,8 +190,8 @@ describe('execute', () => {
 		assert.equal(out[0].json.error, 'The Honk! Honk! ingestion key is invalid or revoked');
 		assert.equal(out[0].json.httpCode, '401');
 		assert.equal(out[0].json.idempotencyKey, 'n8n-42-node-1-0');
-		assert.match(out[1].json.error, /Message is required/);
-		assert.deepEqual(out[2], { json: accepted('msg_3').body, pairedItem: { item: 2 } });
+		assert.match(out[1].json.error, /Set a Message or a Title/);
+		assert.deepEqual(out[2], { json: { ...accepted('msg_3').body, warnings: [] }, pairedItem: { item: 2 } });
 		assert.deepEqual(out.map((o) => o.pairedItem), [{ item: 0 }, { item: 1 }, { item: 2 }]);
 	});
 });

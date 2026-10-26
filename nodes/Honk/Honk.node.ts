@@ -15,6 +15,8 @@ import {
 	checkMessage,
 	defaultIdempotencyKey,
 	describeApiError,
+	describeWarnings,
+	readWarnings,
 	type SendInput,
 	validIdempotencyKey,
 } from './request';
@@ -75,11 +77,10 @@ export class Honk implements INodeType {
 				displayName: 'Message',
 				name: 'message',
 				type: 'string',
-				required: true,
 				typeOptions: { rows: 4 },
 				default: '',
 				placeholder: 'e.g. Maria asked for a quote: 3 rooms, 2 bathrooms',
-				description: 'The text of the message, up to 8192 bytes. Line breaks are kept.',
+				description: 'The text of the message. Line breaks are kept. A message needs a Message, a Title or both.',
 				displayOptions: { show: { resource: ['message'], operation: ['send'] } },
 			},
 			{
@@ -88,7 +89,7 @@ export class Honk implements INodeType {
 				type: 'string',
 				default: '',
 				placeholder: 'e.g. New quote request',
-				description: 'One line, up to 160 characters. Leave empty to use the first line of the message.',
+				description: 'One line. Leave empty to use the first line of the message.',
 				displayOptions: { show: { resource: ['message'], operation: ['send'] } },
 			},
 			{
@@ -96,14 +97,14 @@ export class Honk implements INodeType {
 				name: 'severity',
 				type: 'options',
 				options: [
-					{ name: 'Critical (Blast)', value: 'critical', description: 'Act now; pushes at least as high priority' },
-					{ name: 'Error (Long)', value: 'error', description: 'Something failed; pushes at least as high priority' },
+					{ name: 'Critical (Blast)', value: 'critical', description: 'Act now' },
+					{ name: 'Error (Long)', value: 'error', description: 'Something failed' },
 					{ name: 'Info (Light)', value: 'info', description: 'A quiet note' },
 					{ name: 'Success (Beep)', value: 'success', description: 'Something finished well' },
 					{ name: 'Warning (Loud)', value: 'warning', description: 'Needs attention soon' },
 				],
 				default: 'info',
-				description: 'How serious the event is. Each level shows its Honk name in parentheses.',
+				description: 'How serious the event is; the level alone decides how loudly the phone honks. Each level shows its Honk name in parentheses.',
 				displayOptions: { show: { resource: ['message'], operation: ['send'] } },
 			},
 			{
@@ -193,7 +194,7 @@ export class Honk implements INodeType {
 							{ name: 'Recovery', value: 'recovery', description: 'Closes the open incident of the group' },
 						],
 						default: 'event',
-						description: 'Problems and recoveries need a group key',
+						description: 'A problem opens an incident for its group, a recovery closes it',
 					},
 					{
 						displayName: 'Group Key',
@@ -202,7 +203,7 @@ export class Honk implements INodeType {
 						default: '',
 						placeholder: 'e.g. requests/4812',
 						description:
-							'Messages with the same group key form one group: the first one pushes, repeats update it calmly. Use one key per request, a shared key only for repeats of the same problem. Up to 128 characters.',
+							'Messages with the same group key form one group: the first one pushes, repeats update it calmly. Use one key per request, a shared key only for repeats of the same problem. Without a key, messages group by their title.',
 					},
 					{
 						displayName: 'Image URL',
@@ -259,7 +260,7 @@ export class Honk implements INodeType {
 							{ name: 'High', value: 'high' },
 							{ name: 'Low', value: 'low' },
 							{ name: 'Normal', value: 'normal' },
-							{ name: 'Urgent', value: 'urgent', description: 'Needs a key that allows urgent' },
+							{ name: 'Urgent', value: 'urgent', description: 'Sent as High unless the key allows urgent' },
 						],
 						default: 'normal',
 					},
@@ -368,7 +369,19 @@ export class Honk implements INodeType {
 						description: described.description,
 					});
 				}
-				returnData.push({ json: response.body as IDataObject, pairedItem: { item: i } });
+				// The API's answer, with `warnings` always present: what the server corrected.
+				const warnings = readWarnings(response.body);
+				if (warnings.length > 0 && typeof this.addExecutionHints === 'function') {
+					this.addExecutionHints({
+						type: 'warning',
+						location: 'outputPane',
+						message: `Honk! Honk! accepted item ${i + 1} and corrected it:\n${describeWarnings(warnings)}`,
+					});
+				}
+				returnData.push({
+					json: { ...(response.body as IDataObject), warnings: warnings as unknown as IDataObject[] },
+					pairedItem: { item: i },
+				});
 			} catch (error) {
 				if (this.continueOnFail()) {
 					returnData.push({
