@@ -21,11 +21,28 @@ export const apiError = (statusCode, code, message = 'nope', extra = {}, headers
 	body: { error: { code, message, request_id: 'req_test', ...extra } },
 });
 
-/** An IExecuteFunctions stand-in. `params` is one object per item (or one for all). */
-export function fakeContext({ items = [{ json: {} }], params, credentials, responses = [], continueOnFail = false, executionId = '42', nodeId = 'node-1' }) {
+/**
+ * An IExecuteFunctions stand-in. `params` is one object per item (or one for all). `runIndex` is
+ * the public property n8n's execute context has; `toolExecution` is isToolExecution().
+ */
+export function fakeContext({
+	items = [{ json: {} }],
+	params,
+	credentials,
+	responses = [],
+	continueOnFail = false,
+	executionId = '42',
+	nodeId = 'node-1',
+	runIndex = 0,
+	timezone = 'UTC',
+	toolExecution = false,
+}) {
 	const calls = [];
 	const ctx = {
+		runIndex,
 		getInputData: () => items,
+		getTimezone: () => timezone,
+		isToolExecution: () => toolExecution,
 		getNodeParameter: (name, i, fallback) => {
 			const p = Array.isArray(params) ? params[i] : params;
 			if (p[name] === undefined) {

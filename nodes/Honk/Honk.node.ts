@@ -16,10 +16,25 @@ import {
 	defaultIdempotencyKey,
 	describeApiError,
 	describeWarnings,
+	inputHash,
 	readWarnings,
 	type SendInput,
 	validIdempotencyKey,
 } from './request';
+
+/** Which run of this node in the execution (0 for the first; loops run a node again). */
+function currentRunIndex(ctx: IExecuteFunctions): number {
+	// n8n's execute context has it as a public property; otherwise the data proxy's $runIndex.
+	const own = (ctx as unknown as { runIndex?: unknown }).runIndex;
+	if (typeof own === 'number') return own;
+	try {
+		const proxied = ctx.getWorkflowDataProxy(0).$runIndex as unknown;
+		if (typeof proxied === 'number') return proxied;
+	} catch {
+		// No data proxy here: the first run.
+	}
+	return 0;
+}
 
 interface FullResponse {
 	statusCode: number;
@@ -273,6 +288,24 @@ export class Honk implements INodeType {
 						description: 'Up to 64 characters. Default: api.',
 					},
 					{
+						displayName: 'Source Sequence',
+						name: 'sourceSequence',
+						type: 'number',
+						typeOptions: { minValue: 0, numberPrecision: 0 },
+						default: 0,
+						description:
+							'A number that grows with each message of the same source stream (0 to 2^53−1), e.g. a check counter or a timestamp in milliseconds. An older recovery then never closes a newer problem.',
+					},
+					{
+						displayName: 'TTL Seconds',
+						name: 'ttlSeconds',
+						type: 'number',
+						typeOptions: { minValue: 60, maxValue: 86400, numberPrecision: 0 },
+						default: 3600,
+						description:
+							'How long the push may wait for an offline phone, in seconds: 60 to 86400, default 3600. It does not change how long the message stays in the inbox.',
+					},
+					{
 						displayName: 'URL',
 						name: 'url',
 						type: 'string',
@@ -297,7 +330,7 @@ export class Honk implements INodeType {
 						default: '',
 						placeholder: 'e.g. request-4812',
 						description:
-							'A stable key for this event (1–128 printable ASCII characters). Honk! Honk! accepts a key once in 24 hours, so a repeated run never notifies twice. Default: built from the execution ID, this node and the item.',
+							'A stable key for this event (1–128 printable ASCII characters). Honk! Honk! accepts a key once in 24 hours, so a repeated run never notifies twice. Default: built from the execution ID, this node, its run and the item; for an AI-agent tool call, from the input of the tool call instead of the run.',
 					},
 				],
 			},
@@ -309,11 +342,22 @@ export class Honk implements INodeType {
 		const returnData: INodeExecutionData[] = [];
 		const credentials = await this.getCredentials('honkApi');
 		const endpoint = `${baseUrl(credentials.url)}/v1/messages`;
+		const runIndex = currentRunIndex(this);
+		const isToolCall = typeof this.isToolExecution === 'function' && this.isToolExecution();
+		const timezone = typeof this.getTimezone === 'function' ? this.getTimezone() : undefined;
 
 		for (let i = 0; i < items.length; i++) {
 			const options = this.getNodeParameter('options', i, {}) as IDataObject;
 			const customKey = typeof options.idempotencyKey === 'string' ? options.idempotencyKey.trim() : '';
-			const idempotencyKey = customKey || defaultIdempotencyKey(this.getExecutionId(), this.getNode().id, i);
+			const idempotencyKey =
+				customKey ||
+				defaultIdempotencyKey({
+					executionId: this.getExecutionId(),
+					nodeId: this.getNode().id,
+					runIndex,
+					itemIndex: i,
+					toolInputHash: isToolCall ? inputHash(items[i]?.json) : undefined,
+				});
 			try {
 				const input: SendInput = {
 					message: this.getNodeParameter('message', i) as string,
@@ -321,7 +365,7 @@ export class Honk implements INodeType {
 					severity: this.getNodeParameter('severity', i, 'info') as string,
 					additionalFields: this.getNodeParameter('additionalFields', i, {}) as SendInput['additionalFields'],
 				};
-				const body = buildMessage(input);
+				const body = buildMessage(input, timezone);
 				const problems = checkMessage(body);
 				if (!validIdempotencyKey(idempotencyKey)) {
 					problems.push({

@@ -6,8 +6,28 @@ All notable changes to `n8n-nodes-honk` are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-19
+
+### Fixed
+
+- The default idempotency key includes the node's run index:
+  `n8n-<execution id>-<node id>-<run index>-<item index>`. A second run of the node in the same
+  execution (Loop Over Items, Split In Batches, any loop back to the node) no longer reuses the
+  first run's key, which gave `409 idempotency_conflict` or `duplicate: true` without a push.
+  Retry On Fail repeats the same run and still reuses the key.
+- Used as a tool by an AI agent, the default key is
+  `n8n-<execution id>-<node id>-tool-<input hash>-<item index>` (8 hex characters of the SHA-256
+  of the tool's input), because n8n starts every tool call and every retry as a new run: a retry
+  keeps its key, a call with different input gets a new one.
+- **Occurred At** without an offset (as the date picker writes it, e.g. `2026-01-15T10:00:00`)
+  is read in the workflow's timezone (Settings → Timezone), not in the timezone of the n8n
+  server. A value with an offset or `Z` is unchanged.
+
 ### Added
 
+- **TTL Seconds** (`ttl_seconds`) and **Source Sequence** (`source_sequence`) under Additional
+  Fields. Out-of-range values are left to the server, which clamps a TTL to 60–86400 and leaves
+  out an invalid sequence, each with a warning.
 - The output of every item has `warnings`: what the server corrected in the accepted message
   (`{ field, code, message }`, e.g. a title shortened or an invalid button left out), `[]` when
   nothing. When there are some, the node also shows a warning hint in the output pane.
@@ -18,8 +38,9 @@ All notable changes to `n8n-nodes-honk` are documented here. The format follows
 
 - The node no longer checks field contents before sending (lengths, links, buttons, metadata,
   levels, a recovery without a group key). The server now delivers first: it corrects what it
-  can, sends the message and returns `warnings`. Only a message without message and title, a
-  body over 16 KiB and an invalid idempotency key fail before sending.
+  can, sends the message and returns `warnings`. Only a message without message and title and
+  an invalid idempotency key fail before sending; a body over 16 KiB is refused by the server
+  (`413 payload_too_large`), like in the other Honk! Honk! SDKs.
 - Errors from Honk! Honk! show the server's code and message, every field and the request id in
   the details.
 - Removed the special error for `403 priority_not_allowed`: the server now lowers urgent to high

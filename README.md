@@ -65,11 +65,14 @@ The essentials:
 
 Also under Additional Fields: Priority, Category, Source, Environment, Channel, URL (shown as
 "Open link"), Image URL, Actions (up to 3 buttons, each a title and an `https://`, `mailto:`,
-`tel:` or `sms:` URL; Honk! Honk! opens a link only when you tap its button), Metadata and
-Occurred At.
+`tel:` or `sms:` URL; Honk! Honk! opens a link only when you tap its button), Metadata,
+Occurred At (a date and time without an offset is read in the workflow's timezone, Settings →
+Timezone), Source Sequence (a number that grows with each message of a source stream, so an
+older recovery never closes a newer problem) and TTL Seconds (how long the push may wait for an
+offline phone, 60–86400, default 3600).
 
-The node checks only that a message or a title is set (and the 16 KiB size limit). Everything
-else goes to Honk! Honk! as you entered it, and the server delivers first: what is too long is
+The node checks only that a message or a title is set. Everything else, the body size included,
+goes to Honk! Honk! as you entered it, and the server delivers first: what is too long is
 shortened, an invalid optional value (an `http://` link, a fourth button) is left out, and the
 message is still sent. The node sends one request per input item and outputs the server's
 answer for each, with what it corrected:
@@ -94,8 +97,12 @@ Every message carries an idempotency key. Honk! Honk! accepts a key once in 24 h
 message with the same key again returns the original `id` with `duplicate: true` and nothing is
 pushed twice.
 
-- **Default:** `n8n-<execution id>-<node id>-<item index>`. The node's **Settings → Retry On
-  Fail** and any retry within the same execution reuse it.
+- **Default:** `n8n-<execution id>-<node id>-<run index>-<item index>`. The node's
+  **Settings → Retry On Fail** repeats the same run and reuses it; each pass of a loop (Loop Over
+  Items) is a new run and gets its own key. Used as a tool by an AI agent, the node uses
+  `n8n-<execution id>-<node id>-tool-<input hash>-<item index>` instead, where the hash is 8 hex
+  characters of the SHA-256 of the tool's input: n8n starts each tool call and each retry of it
+  as a new run, so a retry keeps its key and a call with different input gets a new one.
 - **Your own key** (Options → Idempotency Key) when the same event can arrive in different
   executions, e.g. a webhook that is delivered twice: `request-{{ $json.body.id }}`.
 

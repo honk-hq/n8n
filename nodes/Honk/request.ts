@@ -2,13 +2,13 @@
 // network access, so they are unit-tested directly (test/request.test.mjs).
 //
 // Field contents are not checked here: the server delivers first, corrects what it can and
-// lists each correction in the 202's `warnings`, which the node outputs. Only what the server
-// would refuse outright and is cheap to see is checked before sending: a message or a title,
-// and the 16 KiB body.
+// lists each correction in the 202's `warnings`, which the node outputs. Only a message or a
+// title is checked before sending; everything else (the body size included) the server decides
+// and answers with a typed error.
+
+import { createHash } from 'crypto';
 
 export const DEFAULT_URL = 'https://honk-honk.app';
-
-const MAX_BODY_BYTES = 16 * 1024;
 
 export type MetadataValue = string | number | boolean;
 
@@ -32,9 +32,11 @@ export interface SendInput {
 		groupKey?: string;
 		imageUrl?: string;
 		metadata?: { values?: Array<{ key?: string; value?: unknown }> };
-		occurredAt?: string;
+		occurredAt?: unknown;
 		priority?: string;
 		source?: string;
+		sourceSequence?: number | string;
+		ttlSeconds?: number | string;
 		url?: string;
 	};
 }
@@ -52,10 +54,12 @@ export interface MessageBody {
 	group_key?: string;
 	event_type?: string;
 	occurred_at?: string;
+	source_sequence?: number | string;
 	url?: string;
 	image_url?: string;
 	metadata?: Record<string, MetadataValue>;
 	actions?: Action[];
+	ttl_seconds?: number | string;
 }
 
 export interface FieldProblem {
@@ -75,12 +79,65 @@ function metadataValue(value: unknown): MetadataValue {
 	return value === undefined || value === null ? '' : String(value);
 }
 
+/** A number field: a number as it is, a non-empty text as typed (the server converts or ignores it). */
+function numberField(value: unknown): number | string | undefined {
+	if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
+	return text(value);
+}
+
+/** How far ahead of UTC `zone` is at the instant `utcMs`, in milliseconds (throws for an unknown zone). */
+function zoneOffsetMs(zone: string, utcMs: number): number {
+	const parts = new Intl.DateTimeFormat('en-US', {
+		timeZone: zone,
+		hourCycle: 'h23',
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit',
+		hour: '2-digit',
+		minute: '2-digit',
+		second: '2-digit',
+	}).formatToParts(new Date(utcMs));
+	const get = (type: string) => Number(parts.find((p) => p.type === type)?.value);
+	const wall = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'));
+	return wall - (utcMs - (((utcMs % 1000) + 1000) % 1000));
+}
+
+// A date and time without an offset, as the n8n date picker writes it: 2026-01-15T10:00:00.
+const LOCAL_DATE_TIME = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,9}))?)?)?$/;
+
+/**
+ * Occurred At as UTC ISO 8601. A date or time without an offset is the workflow's local time
+ * (`timezone`, from Settings → Timezone); one with an offset or Z is that instant. An
+ * unparseable value is sent as typed; the server leaves it out with a warning.
+ */
+export function occurredAtUtc(value: unknown, timezone?: string): string | undefined {
+	if (value instanceof Date) return Number.isNaN(value.getTime()) ? undefined : value.toISOString();
+	const typed = text(value);
+	if (typed === undefined) return undefined;
+	const local = LOCAL_DATE_TIME.exec(typed);
+	if (local !== null && timezone) {
+		const [, y, mo, d, h = '0', mi = '0', s = '0', frac = '0'] = local;
+		const wall = Date.UTC(+y, +mo - 1, +d, +h, +mi, +s, Math.floor(Number(`0.${frac}`) * 1000));
+		try {
+			// Two passes, so a time next to a daylight-saving change gets the offset in force then.
+			const first = wall - zoneOffsetMs(timezone, wall);
+			const utc = wall - zoneOffsetMs(timezone, first);
+			if (!Number.isNaN(utc)) return new Date(utc).toISOString();
+		} catch {
+			// An unknown zone: read it as before, below.
+		}
+	}
+	const t = new Date(typed);
+	return Number.isNaN(t.getTime()) ? typed : t.toISOString();
+}
+
 /**
  * The request body for one item. Empty optional fields are left out, so the server defaults
  * apply (severity info, priority normal, source "api", environment "default", channel
  * "general"). The message text is kept as typed (line breaks matter); other text is trimmed.
+ * `timezone` is the workflow's, for an Occurred At without an offset.
  */
-export function buildMessage(input: SendInput): MessageBody {
+export function buildMessage(input: SendInput, timezone?: string): MessageBody {
 	const f = input.additionalFields ?? {};
 	const body: MessageBody = {};
 	const message = input.message === undefined || input.message === null ? '' : String(input.message);
@@ -100,12 +157,12 @@ export function buildMessage(input: SendInput): MessageBody {
 	set('event_type', f.eventType);
 	set('url', f.url);
 	set('image_url', f.imageUrl);
-	const occurredAt = text(f.occurredAt);
-	if (occurredAt !== undefined) {
-		const t = new Date(occurredAt);
-		// An unparseable date is sent as typed; the server leaves it out with a warning.
-		body.occurred_at = Number.isNaN(t.getTime()) ? occurredAt : t.toISOString();
-	}
+	const occurredAt = occurredAtUtc(f.occurredAt, timezone);
+	if (occurredAt !== undefined) body.occurred_at = occurredAt;
+	const sourceSequence = numberField(f.sourceSequence);
+	if (sourceSequence !== undefined) body.source_sequence = sourceSequence;
+	const ttlSeconds = numberField(f.ttlSeconds);
+	if (ttlSeconds !== undefined) body.ttl_seconds = ttlSeconds;
 	const entries = f.metadata?.values ?? [];
 	if (entries.length > 0) {
 		const metadata: Record<string, MetadataValue> = {};
@@ -126,16 +183,10 @@ export function buildMessage(input: SendInput): MessageBody {
 	return body;
 }
 
-const utf8Bytes = (s: string) => new TextEncoder().encode(s).length;
-
-/** What the server would refuse outright: no message and no title, or a body over 16 KiB. */
+/** What the server would refuse outright and is cheap to see here: no message and no title. */
 export function checkMessage(body: MessageBody): FieldProblem[] {
 	if (body.message === undefined && body.title === undefined) {
 		return [{ field: 'message', code: 'required', message: 'Set a Message or a Title' }];
-	}
-	const size = utf8Bytes(JSON.stringify(body));
-	if (size > MAX_BODY_BYTES) {
-		return [{ field: 'body', code: 'too_long', message: `The message is ${size} bytes as JSON; Honk! Honk! accepts at most 16 KiB` }];
 	}
 	return [];
 }
@@ -145,14 +196,40 @@ export function validIdempotencyKey(key: string): boolean {
 	return /^[\x21-\x7e]{1,128}$/.test(key);
 }
 
+/** 8 hex characters of the SHA-256 of an item's input JSON: tells tool calls apart. */
+export function inputHash(json: unknown): string {
+	return createHash('sha256')
+		.update(JSON.stringify(json ?? null) ?? '')
+		.digest('hex')
+		.slice(0, 8);
+}
+
+export interface KeyParts {
+	executionId?: string;
+	nodeId?: string;
+	/** Which run of this node in the execution: Loop Over Items and other loops run it again. */
+	runIndex?: number;
+	itemIndex: number;
+	/** Set for an AI-agent tool call: the input hash replaces the run index (see below). */
+	toolInputHash?: string;
+}
+
 /**
- * The default Idempotency-Key: the same execution, node and item always give the same key, so
- * n8n's Retry On Fail (and any retry of this request) never notifies twice. A different node or
- * item gives a different key.
+ * The default Idempotency-Key, `n8n-<execution>-<node>-<run>-<item>`: the same execution, node,
+ * run and item always give the same key, so n8n's Retry On Fail (which repeats the same run)
+ * never notifies twice, while each loop pass, node and item gets its own key.
+ *
+ * An AI-agent tool call is `n8n-<execution>-<node>-tool-<input hash>-<item>`: n8n gives each tool
+ * call, and each retry of one, a new run index, so the key follows the tool's input instead. A
+ * retry of the same call keeps its key; calls with different input get different keys.
+ *
+ * Long IDs are shortened, never the run, item or hash at the end; the key stays 1–128 characters.
  */
-export function defaultIdempotencyKey(executionId: string | undefined, nodeId: string | undefined, itemIndex: number): string {
+export function defaultIdempotencyKey(parts: KeyParts): string {
 	const clean = (s: string | undefined) => (s ?? '').replace(/[^\x21-\x7e]/g, '_') || 'none';
-	return `n8n-${clean(executionId)}-${clean(nodeId)}-${itemIndex}`.slice(0, 128);
+	const run = parts.toolInputHash !== undefined ? `tool-${clean(parts.toolInputHash)}` : String(parts.runIndex ?? 0);
+	const suffix = `-${run}-${parts.itemIndex}`;
+	return `n8n-${clean(parts.executionId)}-${clean(parts.nodeId)}`.slice(0, 128 - suffix.length) + suffix;
 }
 
 /** The credential's server URL as a base address (no trailing slash or /v1/messages). */

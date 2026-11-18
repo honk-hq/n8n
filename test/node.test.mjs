@@ -53,7 +53,7 @@ describe('execute', () => {
 		assert.deepEqual(calls[0].options, {
 			method: 'POST',
 			url: 'https://honk.example.com/v1/messages',
-			headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'Idempotency-Key': 'n8n-42-node-1-0' },
+			headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'Idempotency-Key': 'n8n-42-node-1-0-0' },
 			body: { message: 'db-1 /var is at 91%', title: 'Disk 91% full', severity: 'warning', group_key: 'disk/db-1', metadata: { host: 'db-1' } },
 			json: true,
 			returnFullResponse: true,
@@ -78,13 +78,51 @@ describe('execute', () => {
 		]);
 	});
 
-	test('the same execution, node and item always give the same key', async () => {
+	test('the same execution, node, run and item always give the same key', async () => {
 		const first = run({ params: base, executionId: '7', nodeId: 'abc' });
 		const again = run({ params: base, executionId: '7', nodeId: 'abc' });
 		await first.result;
 		await again.result;
-		assert.equal(first.calls[0].options.headers['Idempotency-Key'], 'n8n-7-abc-0');
-		assert.equal(again.calls[0].options.headers['Idempotency-Key'], 'n8n-7-abc-0');
+		assert.equal(first.calls[0].options.headers['Idempotency-Key'], 'n8n-7-abc-0-0');
+		assert.equal(again.calls[0].options.headers['Idempotency-Key'], 'n8n-7-abc-0-0');
+	});
+
+	test('a second run of the node in the same execution (a loop) sends a new key', async () => {
+		const firstRun = run({ params: base, executionId: '7', nodeId: 'abc', runIndex: 0 });
+		const secondRun = run({ params: base, executionId: '7', nodeId: 'abc', runIndex: 1 });
+		await firstRun.result;
+		await secondRun.result;
+		assert.equal(firstRun.calls[0].options.headers['Idempotency-Key'], 'n8n-7-abc-0-0');
+		assert.equal(secondRun.calls[0].options.headers['Idempotency-Key'], 'n8n-7-abc-1-0');
+	});
+
+	test('without a runIndex property, the run index comes from the data proxy', async () => {
+		const { ctx, calls } = fakeContext({ params: base, executionId: '7', nodeId: 'abc' });
+		delete ctx.runIndex;
+		ctx.getWorkflowDataProxy = () => ({ $runIndex: 4 });
+		await new Honk().execute.call(ctx);
+		assert.equal(calls[0].options.headers['Idempotency-Key'], 'n8n-7-abc-4-0');
+	});
+
+	test('as an AI-agent tool, the key follows the tool input, so a retry keeps it', async () => {
+		const call = async (json, runIndex) => {
+			const { calls, result } = run({ items: [{ json }], params: base, executionId: '7', nodeId: 'abc', runIndex, toolExecution: true });
+			await result;
+			return calls[0].options.headers['Idempotency-Key'];
+		};
+		const first = await call({ message: 'Disk 91% full' }, 3);
+		assert.match(first, /^n8n-7-abc-tool-[0-9a-f]{8}-0$/);
+		assert.equal(await call({ message: 'Disk 91% full' }, 4), first, 'n8n retries a tool call with a new run index');
+		assert.notEqual(await call({ message: 'Disk 95% full' }, 5), first);
+	});
+
+	test('Occurred At without an offset is read in the workflow timezone; TTL and sequence are sent', async () => {
+		const additionalFields = { occurredAt: '2026-01-15T10:00:00', ttlSeconds: 600, sourceSequence: 17 };
+		const { calls, result } = run({ params: { ...base, additionalFields }, timezone: 'Europe/Bucharest' });
+		await result;
+		assert.equal(calls[0].options.body.occurred_at, '2026-01-15T08:00:00.000Z');
+		assert.equal(calls[0].options.body.ttl_seconds, 600);
+		assert.equal(calls[0].options.body.source_sequence, 17);
 	});
 
 	test('only a missing message and title, or a bad idempotency key, fail before any request', async () => {
@@ -189,7 +227,7 @@ describe('execute', () => {
 		assert.equal(out.length, 3);
 		assert.equal(out[0].json.error, 'The Honk! Honk! ingestion key is invalid or revoked');
 		assert.equal(out[0].json.httpCode, '401');
-		assert.equal(out[0].json.idempotencyKey, 'n8n-42-node-1-0');
+		assert.equal(out[0].json.idempotencyKey, 'n8n-42-node-1-0-0');
 		assert.match(out[1].json.error, /Set a Message or a Title/);
 		assert.deepEqual(out[2], { json: { ...accepted('msg_3').body, warnings: [] }, pairedItem: { item: 2 } });
 		assert.deepEqual(out.map((o) => o.pairedItem), [{ item: 0 }, { item: 1 }, { item: 2 }]);
