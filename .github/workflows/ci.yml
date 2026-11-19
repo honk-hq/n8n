@@ -54,10 +54,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci && npm run build
-      - name: Pack and unpack the tarball
-        run: |
-          npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP"
-          mkdir -p "$RUNNER_TEMP/pkg"
-          tar -xzf "$RUNNER_TEMP"/n8n-nodes-honk-*.tgz -C "$RUNNER_TEMP/pkg" --strip-components=1
-      - run: npm install --no-save --no-audit --no-fund --prefix "$RUNNER_TEMP/scan" @n8n/scan-community-package
-      - run: node scripts/scan.mjs "$RUNNER_TEMP/scan" "$RUNNER_TEMP/pkg"
+      # n8n's own scanner, the static analysis it runs before verifying a community node: a local
+      # scan lints the sources and the files `npm pack` would publish (npm provenance and the
+      # attested source are checked only after publishing). Pinned: 0.44 replaced the internal
+      # module scripts/scan.mjs imported.
+      - run: npx --yes @n8n/scan-community-package@0.44.0 .
